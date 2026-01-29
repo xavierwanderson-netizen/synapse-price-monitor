@@ -1,8 +1,16 @@
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
 import cron from "node-cron";
-import products from "./products.json" assert { type: "json" };
 import { getAmazonPrice } from "./amazon.js";
 import { getLastPrice, setLastPrice } from "./store.js";
 import { notifyWhatsApp } from "./notifier.js";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+const productsPath = path.join(__dirname, "products.json");
+const products = JSON.parse(fs.readFileSync(productsPath, "utf-8"));
 
 const interval = process.env.CHECK_INTERVAL_MINUTES || 30;
 
@@ -24,3 +32,8 @@ cron.schedule(`*/${interval} * * * *`, async () => {
     setLastPrice(product.asin, price);
   }
 });
+
+// KEEP-ALIVE obrigatório para Railway
+setInterval(() => {
+  console.log("🟢 Processo ativo (keep-alive)");
+}, 300000);
