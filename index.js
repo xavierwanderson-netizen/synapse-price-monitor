@@ -1,3 +1,6 @@
+import { notifyTelegram } from "./notifier.js";
+
+notifyTelegram("✅ Synapse Price Monitor conectado ao canal Synapse Ofertas");
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
