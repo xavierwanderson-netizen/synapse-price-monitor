@@ -10,7 +10,7 @@ import { notifyWhatsApp } from "./notifier.js";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Carregar products.json SEM assert
+// Carregar products.json SEM assert (FORMA CORRETA)
 const productsPath = path.join(__dirname, "products.json");
 const products = JSON.parse(fs.readFileSync(productsPath, "utf-8"));
 
