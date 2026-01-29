@@ -1,23 +1,34 @@
 import axios from "axios";
 
-const TOKEN = process.env.TELEGRAM_BOT_TOKEN;
+const TELEGRAM_API = `https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}`;
 const CHAT_ID = process.env.TELEGRAM_CHAT_ID;
 
-if (!TOKEN || !CHAT_ID) {
-  throw new Error("TELEGRAM_BOT_TOKEN ou TELEGRAM_CHAT_ID não definidos");
-}
+export async function notifyTelegram({
+  title,
+  price,
+  oldPrice,
+  discountPercent,
+  affiliateUrl,
+  image
+}) {
+  const caption = `
+🔥 OFERTA REAL DETECTADA
 
-const API_URL = `https://api.telegram.org/bot${TOKEN}`;
+🛒 ${title}
 
-export async function notifyTelegram(message) {
+💰 De R$ ${oldPrice.toFixed(2)} por R$ ${price.toFixed(2)}
+📉 Desconto: ${discountPercent.toFixed(1)}%
+
+🔗 ${affiliateUrl}
+`;
+
   try {
-    await axios.post(`${API_URL}/sendMessage`, {
+    await axios.post(`${TELEGRAM_API}/sendPhoto`, {
       chat_id: CHAT_ID,
-      text: message,
-      parse_mode: "Markdown",
-      disable_web_page_preview: false
+      photo: image,
+      caption
     });
-  } catch (err) {
-    console.error("Erro ao enviar mensagem para o Telegram:", err.response?.data || err.message);
+  } catch (error) {
+    console.error("Erro ao enviar mensagem para o Telegram:", error.response?.data || error.message);
   }
 }
