@@ -1,16 +1,24 @@
 import axios from "axios";
 
-export async function notifyWhatsApp(message) {
-  const url = process.env.WHATSAPP_WEBHOOK_URL;
+export async function notifyTelegram(message) {
+  const token = process.env.TELEGRAM_BOT_TOKEN;
+  const chatId = process.env.TELEGRAM_CHAT_ID;
 
-  if (!url) {
-    console.log("⚠️ Webhook do WhatsApp não configurado");
+  if (!token || !chatId) {
+    console.error("❌ TELEGRAM_BOT_TOKEN ou TELEGRAM_CHAT_ID não definidos");
     return;
   }
 
-  await axios.post(url, {
-    text: message
-  });
+  const url = `https://api.telegram.org/bot${token}/sendMessage`;
 
-  console.log("📲 Mensagem enviada ao WhatsApp");
+  try {
+    await axios.post(url, {
+      chat_id: chatId,
+      text: message,
+      parse_mode: "Markdown",
+    });
+    console.log("📨 Mensagem enviada para o Telegram");
+  } catch (err) {
+    console.error("❌ Erro ao enviar mensagem Telegram:", err.message);
+  }
 }
