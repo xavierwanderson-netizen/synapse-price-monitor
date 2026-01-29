@@ -14,6 +14,11 @@ const products = JSON.parse(fs.readFileSync(productsPath, "utf-8"));
 const interval = process.env.CHECK_INTERVAL_MINUTES || 30;
 
 console.log("🚀 Synapse Price Monitor iniciado");
+console.log("🫀 Keep-alive ativo (processo não encerrará).");
+
+setInterval(() => {
+  // Mantém o processo ativo no Railway/Node sem alterar a lógica de negócio.
+}, 60 * 1000);
 
 cron.schedule(`*/${interval} * * * *`, async () => {
   console.log("⏱️ Verificando preços...");
