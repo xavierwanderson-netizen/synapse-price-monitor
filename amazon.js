@@ -11,3 +11,7 @@ export async function getAmazonPrice(asin) {
 
   return simulatedPrice;
 }
+
+export async function checkAmazonPrice(asin) {
+  return getAmazonPrice(asin);
+}
