@@ -14,55 +14,59 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 /**
- * Carregar produtos (products.json)
+ * Carregar produtos
  */
-const productsPath = path.join(__dirname, "products.json");
-const products = JSON.parse(fs.readFileSync(productsPath, "utf-8"));
-
-/**
- * Intervalo do cron (minutos)
- */
-const interval = Number(process.env.CHECK_INTERVAL_MINUTES || 30);
-
-console.log("🚀 Synapse Price Monitor iniciado");
-console.log(`⏱️ Intervalo: ${interval} minutos`);
-console.log(`📦 Produtos monitorados: ${products.length}`);
-
-/**
- * Mensagem inicial no canal
- */
-notifyTelegram(
-  "🚀 *Synapse Price Monitor iniciado*\n" +
-  "🔎 Monitoramento automático de ofertas ativo."
+const products = JSON.parse(
+  fs.readFileSync(path.join(__dirname, "products.json"), "utf-8")
 );
 
 /**
- * CRON — execução periódica
+ * Configurações
  */
-cron.schedule(`*/${interval} * * * *`, async () => {
+const INTERVAL_MINUTES = Number(process.env.CHECK_INTERVAL_MINUTES || 30);
+const MIN_DROP_PERCENT = 0.15; // 15%
+const AMAZON_TAG = process.env.AMAZON_PARTNER_TAG;
+
+console.log("🚀 Synapse Price Monitor iniciado");
+console.log(`⏱️ Intervalo: ${INTERVAL_MINUTES} minutos`);
+console.log("📉 Alerta somente para queda >= 15%");
+
+/**
+ * CRON
+ */
+cron.schedule(`*/${INTERVAL_MINUTES} * * * *`, async () => {
   console.log("⏱️ Verificando preços...");
 
   for (const product of products) {
     try {
-      const price = await getAmazonPrice(product.asin);
+      const currentPrice = await getAmazonPrice(product.asin);
       const lastPrice = getLastPrice(product.asin);
 
-      console.log(
-        `📦 ${product.title} | Atual: R$ ${price} | Anterior: ${
-          lastPrice ?? "N/A"
-        }`
-      );
+      // Sempre atualiza o último preço se ainda não existir
+      if (!lastPrice) {
+        setLastPrice(product.asin, currentPrice);
+        continue;
+      }
 
-      if (!lastPrice || price < lastPrice) {
+      const dropPercent = (lastPrice - currentPrice) / lastPrice;
+
+      // Só alerta se cair >= 15%
+      if (dropPercent >= MIN_DROP_PERCENT) {
+        const affiliateLink = AMAZON_TAG
+          ? `https://www.amazon.com.br/dp/${product.asin}?tag=${AMAZON_TAG}`
+          : `https://www.amazon.com.br/dp/${product.asin}`;
+
         await notifyTelegram(
-          `🔥 *OFERTA DETECTADA*\n\n` +
+          `🔥 *OFERTA REAL DETECTADA*\n\n` +
           `🛒 *${product.title}*\n` +
-          `💰 *R$ ${price}*\n` +
-          `🔗 https://www.amazon.com.br/dp/${product.asin}`
+          `💰 *De R$ ${lastPrice.toFixed(2)} por R$ ${currentPrice.toFixed(2)}*\n` +
+          `📉 *Queda: ${(dropPercent * 100).toFixed(1)}%*\n` +
+          `🔗 ${affiliateLink}`
         );
       }
 
-      setLastPrice(product.asin, price);
+      // Atualiza sempre o último preço
+      setLastPrice(product.asin, currentPrice);
     } catch (err) {
       console.error(
         `❌ Erro ao processar ASIN ${product.asin}:`,
