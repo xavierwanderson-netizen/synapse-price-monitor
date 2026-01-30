@@ -12,9 +12,8 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 /* ===============================
-   SERVIDOR HTTP (RAILWAY)
+   HTTP SERVER (Railway online)
    =============================== */
-
 const PORT = process.env.PORT || 3000;
 
 http.createServer((req, res) => {
@@ -25,9 +24,8 @@ http.createServer((req, res) => {
 });
 
 /* ===============================
-   MONITOR DE PREÇOS
+   CONFIG
    =============================== */
-
 const productsPath = path.join(__dirname, "products.json");
 const products = JSON.parse(fs.readFileSync(productsPath, "utf-8"));
 
@@ -40,8 +38,11 @@ console.log(`⏱️ Intervalo: ${INTERVAL} minutos`);
 console.log(`📉 Desconto mínimo: ${MIN_DISCOUNT_PERCENT}%`);
 console.log(`🧊 Cooldown alerta: ${ALERT_COOLDOWN_HOURS}h`);
 
-cron.schedule(`*/${INTERVAL} * * * *`, async () => {
-  console.log("🔍 Verificando preços...");
+/* ===============================
+   FUNÇÃO DE VERIFICAÇÃO
+   =============================== */
+async function checkPrices(reason = "cron") {
+  console.log(`🔍 Verificando preços (${reason})...`);
 
   for (const product of products) {
     try {
@@ -84,4 +85,16 @@ cron.schedule(`*/${INTERVAL} * * * *`, async () => {
       console.error(`Erro ASIN ${product.asin}:`, error?.message || error);
     }
   }
+}
+
+/* ===============================
+   EXECUÇÃO IMEDIATA (FORÇADA)
+   =============================== */
+checkPrices("startup");
+
+/* ===============================
+   CRON NORMAL
+   =============================== */
+cron.schedule(`*/${INTERVAL} * * * *`, () => {
+  checkPrices("cron");
 });
