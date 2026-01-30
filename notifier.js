@@ -9,26 +9,57 @@ export async function notifyTelegram({
   oldPrice,
   discountPercent,
   affiliateUrl,
-  image
+  image,
+  customText
 }) {
-  const caption = `
-🔥 OFERTA REAL DETECTADA
+  try {
+    // Caso especial: ranking diário (texto puro)
+    if (customText) {
+      await axios.post(`${TELEGRAM_API}/sendMessage`, {
+        chat_id: CHAT_ID,
+        text: customText,
+        parse_mode: "Markdown",
+        disable_web_page_preview: false
+      });
+      return;
+    }
 
-🛒 ${title}
+    // Copy otimizada para conversão
+    const caption =
+`🚨 *OFERTA IMPERDÍVEL AGORA*
 
-💰 De R$ ${oldPrice.toFixed(2)} por R$ ${price.toFixed(2)}
-📉 Desconto: ${discountPercent.toFixed(1)}%
+🛒 *${title}*
 
-🔗 ${affiliateUrl}
+💸 *DESCONTO REAL:* ${discountPercent.toFixed(1)}%
+💰 De *R$ ${oldPrice.toFixed(2)}* por *R$ ${price.toFixed(2)}*
+
+⚠️ *Preço pode subir a qualquer momento*
+👉 *Clique e garanta agora:*
+${affiliateUrl}
 `;
 
-  try {
-    await axios.post(`${TELEGRAM_API}/sendPhoto`, {
-      chat_id: CHAT_ID,
-      photo: image,
-      caption
-    });
+    // Se tiver imagem, envia com foto
+    if (image) {
+      await axios.post(`${TELEGRAM_API}/sendPhoto`, {
+        chat_id: CHAT_ID,
+        photo: image,
+        caption,
+        parse_mode: "Markdown"
+      });
+    } else {
+      // fallback sem imagem
+      await axios.post(`${TELEGRAM_API}/sendMessage`, {
+        chat_id: CHAT_ID,
+        text: caption,
+        parse_mode: "Markdown",
+        disable_web_page_preview: false
+      });
+    }
+
   } catch (error) {
-    console.error("Erro ao enviar mensagem para o Telegram:", error.response?.data || error.message);
+    console.error(
+      "Erro ao enviar Telegram:",
+      error.response?.data || error.message
+    );
   }
 }
