@@ -1,64 +1,87 @@
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
+import cron from "node-cron";
+import http from "http";
+
+import { getAmazonPrice } from "./amazon.js";
+import { getLastPrice, setLastPrice, canAlert, markAlerted } from "./store.js";
+import { notifyTelegram } from "./notifier.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const DATA_DIR = path.join(__dirname, ".data");
-const STORE_FILE = path.join(DATA_DIR, "store.json");
+/* ===============================
+   SERVIDOR HTTP (RAILWAY)
+   =============================== */
 
-function ensureStore() {
-  if (!fs.existsSync(DATA_DIR)) {
-    fs.mkdirSync(DATA_DIR, { recursive: true });
+const PORT = process.env.PORT || 3000;
+
+http.createServer((req, res) => {
+  res.writeHead(200, { "Content-Type": "text/plain" });
+  res.end("Synapse Price Monitor ONLINE");
+}).listen(PORT, () => {
+  console.log(`🌐 HTTP server ativo na porta ${PORT}`);
+});
+
+/* ===============================
+   MONITOR DE PREÇOS
+   =============================== */
+
+const productsPath = path.join(__dirname, "products.json");
+const products = JSON.parse(fs.readFileSync(productsPath, "utf-8"));
+
+const INTERVAL = Number(process.env.CHECK_INTERVAL_MINUTES || 30);
+const MIN_DISCOUNT_PERCENT = 15;
+const ALERT_COOLDOWN_HOURS = Number(process.env.ALERT_COOLDOWN_HOURS || 12);
+
+console.log("🚀 Synapse Price Monitor iniciado");
+console.log(`⏱️ Intervalo: ${INTERVAL} minutos`);
+console.log(`📉 Desconto mínimo: ${MIN_DISCOUNT_PERCENT}%`);
+console.log(`🧊 Cooldown alerta: ${ALERT_COOLDOWN_HOURS}h`);
+
+cron.schedule(`*/${INTERVAL} * * * *`, async () => {
+  console.log("🔍 Verificando preços...");
+
+  for (const product of products) {
+    try {
+      const result = await getAmazonPrice(product.asin);
+      if (!result) continue;
+
+      const { title, price, image, affiliateUrl } = result;
+      const lastPrice = getLastPrice(product.asin);
+
+      if (lastPrice == null) {
+        setLastPrice(product.asin, price);
+        continue;
+      }
+
+      if (price >= lastPrice) {
+        setLastPrice(product.asin, price);
+        continue;
+      }
+
+      const discountPercent = ((lastPrice - price) / lastPrice) * 100;
+
+      if (
+        discountPercent >= MIN_DISCOUNT_PERCENT &&
+        canAlert(product.asin, ALERT_COOLDOWN_HOURS)
+      ) {
+        await notifyTelegram({
+          title,
+          price,
+          oldPrice: lastPrice,
+          discountPercent,
+          image,
+          affiliateUrl
+        });
+        markAlerted(product.asin);
+      }
+
+      setLastPrice(product.asin, price);
+
+    } catch (error) {
+      console.error(`Erro ASIN ${product.asin}:`, error?.message || error);
+    }
   }
-
-  if (!fs.existsSync(STORE_FILE)) {
-    fs.writeFileSync(
-      STORE_FILE,
-      JSON.stringify({ prices: {}, alerts: {} }, null, 2),
-      "utf-8"
-    );
-  }
-}
-
-function readStore() {
-  ensureStore();
-  const raw = fs.readFileSync(STORE_FILE, "utf-8");
-  return JSON.parse(raw);
-}
-
-function writeStore(store) {
-  const tmp = STORE_FILE + ".tmp";
-  fs.writeFileSync(tmp, JSON.stringify(store, null, 2), "utf-8");
-  fs.renameSync(tmp, STORE_FILE);
-}
-
-export function getLastPrice(asin) {
-  const store = readStore();
-  return typeof store.prices[asin] === "number"
-    ? store.prices[asin]
-    : null;
-}
-
-export function setLastPrice(asin, price) {
-  const store = readStore();
-  store.prices[asin] = price;
-  writeStore(store);
-}
-
-export function canAlert(asin, cooldownHours = 12) {
-  const store = readStore();
-  const last = store.alerts[asin];
-
-  if (!last) return true;
-
-  const elapsed = Date.now() - last;
-  return elapsed >= cooldownHours * 60 * 60 * 1000;
-}
-
-export function markAlerted(asin) {
-  const store = readStore();
-  store.alerts[asin] = Date.now();
-  writeStore(store);
-}
+});
