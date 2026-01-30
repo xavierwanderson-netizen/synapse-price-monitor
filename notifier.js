@@ -13,7 +13,7 @@ export async function notifyTelegram({
   customText
 }) {
   try {
-    // Caso especial: ranking diário (texto puro)
+    // Ranking diário (texto puro)
     if (customText) {
       await axios.post(`${TELEGRAM_API}/sendMessage`, {
         chat_id: CHAT_ID,
@@ -24,7 +24,7 @@ export async function notifyTelegram({
       return;
     }
 
-    // Copy otimizada para conversão
+    // Texto do alerta (copy otimizada)
     const caption =
 `🚨 *OFERTA IMPERDÍVEL AGORA*
 
@@ -38,7 +38,8 @@ export async function notifyTelegram({
 ${affiliateUrl}
 `;
 
-    // Se tiver imagem, envia com foto
+    // 🔑 REGRA DE OURO:
+    // Se tiver imagem → SEMPRE sendPhoto
     if (image) {
       await axios.post(`${TELEGRAM_API}/sendPhoto`, {
         chat_id: CHAT_ID,
@@ -46,15 +47,16 @@ ${affiliateUrl}
         caption,
         parse_mode: "Markdown"
       });
-    } else {
-      // fallback sem imagem
-      await axios.post(`${TELEGRAM_API}/sendMessage`, {
-        chat_id: CHAT_ID,
-        text: caption,
-        parse_mode: "Markdown",
-        disable_web_page_preview: false
-      });
+      return;
     }
+
+    // Fallback extremo (caso Amazon não retorne imagem)
+    await axios.post(`${TELEGRAM_API}/sendMessage`, {
+      chat_id: CHAT_ID,
+      text: caption,
+      parse_mode: "Markdown",
+      disable_web_page_preview: false
+    });
 
   } catch (error) {
     console.error(
