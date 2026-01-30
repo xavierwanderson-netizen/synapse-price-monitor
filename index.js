@@ -4,18 +4,23 @@ import { fileURLToPath } from "url";
 import cron from "node-cron";
 
 import { getAmazonPrice } from "./amazon.js";
-import { getLastPrice, setLastPrice } from "./store.js";
+import {
+  getLastPrice,
+  setLastPrice,
+  canAlert,
+  markAlerted
+} from "./store.js";
 import { notifyTelegram } from "./notifier.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Carrega products.json
 const productsPath = path.join(__dirname, "products.json");
 const products = JSON.parse(fs.readFileSync(productsPath, "utf-8"));
 
 const INTERVAL = process.env.CHECK_INTERVAL_MINUTES || 30;
 const MIN_DISCOUNT_PERCENT = 15;
+const ALERT_COOLDOWN_HOURS = 12;
 
 console.log("🚀 Synapse Price Monitor iniciado");
 console.log(`⏱️ Intervalo: ${INTERVAL} minutos`);
@@ -33,13 +38,17 @@ cron.schedule(`*/${INTERVAL} * * * *`, async () => {
       const lastPrice = getLastPrice(product.asin);
 
       if (lastPrice && price >= lastPrice) {
+        setLastPrice(product.asin, price);
         continue;
       }
 
       if (lastPrice) {
         const discountPercent = ((lastPrice - price) / lastPrice) * 100;
 
-        if (discountPercent >= MIN_DISCOUNT_PERCENT) {
+        if (
+          discountPercent >= MIN_DISCOUNT_PERCENT &&
+          canAlert(product.asin, ALERT_COOLDOWN_HOURS)
+        ) {
           await notifyTelegram({
             title,
             price,
@@ -48,13 +57,14 @@ cron.schedule(`*/${INTERVAL} * * * *`, async () => {
             image,
             affiliateUrl
           });
+          markAlerted(product.asin);
         }
       }
 
       setLastPrice(product.asin, price);
 
     } catch (error) {
-      console.error(`Erro ao processar ASIN ${product.asin}:`, error.message);
+      console.error(`Erro ASIN ${product.asin}:`, error.message);
     }
   }
 });
