@@ -5,15 +5,17 @@ import { fileURLToPath } from "url";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Arquivo persistente (fica junto do app)
 const DATA_DIR = path.join(__dirname, ".data");
-const STORE_PATH = path.join(DATA_DIR, "store.json");
+const STORE_FILE = path.join(DATA_DIR, "store.json");
 
 function ensureStore() {
-  if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
-  if (!fs.existsSync(STORE_PATH)) {
+  if (!fs.existsSync(DATA_DIR)) {
+    fs.mkdirSync(DATA_DIR, { recursive: true });
+  }
+
+  if (!fs.existsSync(STORE_FILE)) {
     fs.writeFileSync(
-      STORE_PATH,
+      STORE_FILE,
       JSON.stringify({ prices: {}, alerts: {} }, null, 2),
       "utf-8"
     );
@@ -22,31 +24,21 @@ function ensureStore() {
 
 function readStore() {
   ensureStore();
-  try {
-    const raw = fs.readFileSync(STORE_PATH, "utf-8");
-    const parsed = JSON.parse(raw);
-    if (!parsed.prices) parsed.prices = {};
-    if (!parsed.alerts) parsed.alerts = {};
-    return parsed;
-  } catch {
-    // Se corromper por qualquer motivo, recria
-    const fresh = { prices: {}, alerts: {} };
-    fs.writeFileSync(STORE_PATH, JSON.stringify(fresh, null, 2), "utf-8");
-    return fresh;
-  }
+  const raw = fs.readFileSync(STORE_FILE, "utf-8");
+  return JSON.parse(raw);
 }
 
-function writeStore(data) {
-  ensureStore();
-  const tmp = `${STORE_PATH}.tmp`;
-  fs.writeFileSync(tmp, JSON.stringify(data, null, 2), "utf-8");
-  fs.renameSync(tmp, STORE_PATH); // write atomic
+function writeStore(store) {
+  const tmp = STORE_FILE + ".tmp";
+  fs.writeFileSync(tmp, JSON.stringify(store, null, 2), "utf-8");
+  fs.renameSync(tmp, STORE_FILE);
 }
 
 export function getLastPrice(asin) {
   const store = readStore();
-  const val = store.prices?.[asin];
-  return typeof val === "number" ? val : null;
+  return typeof store.prices[asin] === "number"
+    ? store.prices[asin]
+    : null;
 }
 
 export function setLastPrice(asin, price) {
@@ -57,7 +49,7 @@ export function setLastPrice(asin, price) {
 
 export function canAlert(asin, cooldownHours = 12) {
   const store = readStore();
-  const last = store.alerts?.[asin];
+  const last = store.alerts[asin];
   if (!last) return true;
 
   const elapsed = Date.now() - last;
@@ -67,4 +59,5 @@ export function canAlert(asin, cooldownHours = 12) {
 export function markAlerted(asin) {
   const store = readStore();
   store.alerts[asin] = Date.now();
-  wri
+  writeStore(store);
+}
