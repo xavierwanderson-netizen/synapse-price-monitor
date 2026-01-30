@@ -1,50 +1,70 @@
-import Database from "better-sqlite3";
+import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const db = new Database(path.join(__dirname, "prices.db"));
+// Arquivo persistente (fica junto do app)
+const DATA_DIR = path.join(__dirname, ".data");
+const STORE_PATH = path.join(DATA_DIR, "store.json");
 
-db.prepare(`
-  CREATE TABLE IF NOT EXISTS prices (
-    asin TEXT PRIMARY KEY,
-    last_price REAL,
-    last_alert_at INTEGER
-  )
-`).run();
+function ensureStore() {
+  if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+  if (!fs.existsSync(STORE_PATH)) {
+    fs.writeFileSync(
+      STORE_PATH,
+      JSON.stringify({ prices: {}, alerts: {} }, null, 2),
+      "utf-8"
+    );
+  }
+}
+
+function readStore() {
+  ensureStore();
+  try {
+    const raw = fs.readFileSync(STORE_PATH, "utf-8");
+    const parsed = JSON.parse(raw);
+    if (!parsed.prices) parsed.prices = {};
+    if (!parsed.alerts) parsed.alerts = {};
+    return parsed;
+  } catch {
+    // Se corromper por qualquer motivo, recria
+    const fresh = { prices: {}, alerts: {} };
+    fs.writeFileSync(STORE_PATH, JSON.stringify(fresh, null, 2), "utf-8");
+    return fresh;
+  }
+}
+
+function writeStore(data) {
+  ensureStore();
+  const tmp = `${STORE_PATH}.tmp`;
+  fs.writeFileSync(tmp, JSON.stringify(data, null, 2), "utf-8");
+  fs.renameSync(tmp, STORE_PATH); // write atomic
+}
 
 export function getLastPrice(asin) {
-  const row = db.prepare(
-    "SELECT last_price FROM prices WHERE asin = ?"
-  ).get(asin);
-  return row?.last_price ?? null;
+  const store = readStore();
+  const val = store.prices?.[asin];
+  return typeof val === "number" ? val : null;
 }
 
 export function setLastPrice(asin, price) {
-  db.prepare(`
-    INSERT INTO prices (asin, last_price)
-    VALUES (?, ?)
-    ON CONFLICT(asin) DO UPDATE SET last_price = excluded.last_price
-  `).run(asin, price);
+  const store = readStore();
+  store.prices[asin] = price;
+  writeStore(store);
 }
 
 export function canAlert(asin, cooldownHours = 12) {
-  const row = db.prepare(
-    "SELECT last_alert_at FROM prices WHERE asin = ?"
-  ).get(asin);
+  const store = readStore();
+  const last = store.alerts?.[asin];
+  if (!last) return true;
 
-  if (!row?.last_alert_at) return true;
-
-  const elapsed = Date.now() - row.last_alert_at;
+  const elapsed = Date.now() - last;
   return elapsed >= cooldownHours * 60 * 60 * 1000;
 }
 
 export function markAlerted(asin) {
-  db.prepare(`
-    INSERT INTO prices (asin, last_alert_at)
-    VALUES (?, ?)
-    ON CONFLICT(asin) DO UPDATE SET last_alert_at = excluded.last_alert_at
-  `).run(asin, Date.now());
-}
+  const store = readStore();
+  store.alerts[asin] = Date.now();
+  wri
