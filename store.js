@@ -9,14 +9,11 @@ const DATA_DIR = path.join(__dirname, ".data");
 const STORE_FILE = path.join(DATA_DIR, "store.json");
 
 function ensureStore() {
-  if (!fs.existsSync(DATA_DIR)) {
-    fs.mkdirSync(DATA_DIR, { recursive: true });
-  }
-
+  if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
   if (!fs.existsSync(STORE_FILE)) {
     fs.writeFileSync(
       STORE_FILE,
-      JSON.stringify({ prices: {}, alerts: {} }, null, 2),
+      JSON.stringify({ prices: {}, alerts: {}, history: {} }, null, 2),
       "utf-8"
     );
   }
@@ -24,21 +21,32 @@ function ensureStore() {
 
 function readStore() {
   ensureStore();
-  const raw = fs.readFileSync(STORE_FILE, "utf-8");
-  return JSON.parse(raw);
+  return JSON.parse(fs.readFileSync(STORE_FILE, "utf-8"));
 }
 
 function writeStore(store) {
-  const tmp = STORE_FILE + ".tmp";
-  fs.writeFileSync(tmp, JSON.stringify(store, null, 2), "utf-8");
-  fs.renameSync(tmp, STORE_FILE);
+  fs.writeFileSync(STORE_FILE, JSON.stringify(store, null, 2), "utf-8");
+}
+
+export function addPriceHistory(asin, price, max = 20) {
+  const store = readStore();
+  if (!store.history[asin]) store.history[asin] = [];
+  store.history[asin].push({ price, ts: Date.now() });
+  store.history[asin] = store.history[asin].slice(-max);
+  writeStore(store);
+}
+
+export function getAveragePrice(asin) {
+  const store = readStore();
+  const list = store.history[asin];
+  if (!list || list.length < 3) return null;
+  const sum = list.reduce((acc, p) => acc + p.price, 0);
+  return sum / list.length;
 }
 
 export function getLastPrice(asin) {
   const store = readStore();
-  return typeof store.prices[asin] === "number"
-    ? store.prices[asin]
-    : null;
+  return store.prices[asin] ?? null;
 }
 
 export function setLastPrice(asin, price) {
@@ -51,9 +59,7 @@ export function canAlert(asin, cooldownHours = 12) {
   const store = readStore();
   const last = store.alerts[asin];
   if (!last) return true;
-
-  const elapsed = Date.now() - last;
-  return elapsed >= cooldownHours * 60 * 60 * 1000;
+  return Date.now() - last >= cooldownHours * 60 * 60 * 1000;
 }
 
 export function markAlerted(asin) {
