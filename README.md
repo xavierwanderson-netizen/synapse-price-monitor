@@ -29,9 +29,10 @@ Defina estas variáveis no Railway ou no seu `.env` local:
 ## 🧠 Como funciona
 1. Lê os produtos de `products.json` (ASIN + título).
 2. Faz scraping da página da Amazon Brasil para obter preço real.
-3. Compara com o último preço salvo em memória.
-4. Se a queda for maior ou igual ao percentual configurado, envia alerta no Telegram (com imagem se disponível).
-5. Executa automaticamente a cada X minutos.
+3. Em caso de bloqueio (403/503), usa um fallback via `r.jina.ai` para buscar o HTML.
+4. Compara com o último preço salvo em memória.
+5. Se a queda for maior ou igual ao percentual configurado, envia alerta no Telegram (com imagem se disponível).
+6. Executa automaticamente a cada X minutos.
 
 ## 🧩 Estrutura dos arquivos
 - `index.js`: orquestrador com cron
