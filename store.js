@@ -29,18 +29,11 @@ function safeReadStore() {
     const raw = fs.readFileSync(STORE_FILE, "utf-8");
     const data = JSON.parse(raw);
 
-    // Normaliza caso falte algum campo
     data.lastPrices = data.lastPrices || {};
     data.priceHistory = data.priceHistory || {};
     data.alertState = data.alertState || {};
     return data;
-  } catch (e) {
-    // Se corromper, renomeia e cria um novo
-    try {
-      const corrupted = `${STORE_FILE}.corrupted.${Date.now()}`;
-      fs.renameSync(STORE_FILE, corrupted);
-      console.log("⚠️ Store corrompido. Backup criado:", corrupted);
-    } catch (_) {}
+  } catch {
     ensureStoreFile();
     return {
       lastPrices: {},
@@ -57,19 +50,7 @@ function safeWriteStore(data) {
   fs.renameSync(tmp, STORE_FILE);
 }
 
-export function getLastPrice(asin) {
-  const store = safeReadStore();
-  const v = store.lastPrices?.[asin];
-  return typeof v === "number" ? v : null;
-}
-
-export function setLastPrice(asin, price) {
-  const store = safeReadStore();
-  store.lastPrices[asin] = price;
-  safeWriteStore(store);
-}
-
-export function addPriceHistory(asin, price, maxLen = 30) {
+export function addPriceHistory(asin, price, maxLen = 60) {
   const store = safeReadStore();
   store.priceHistory[asin] = store.priceHistory[asin] || [];
   store.priceHistory[asin].push({ ts: Date.now(), price });
@@ -81,23 +62,24 @@ export function addPriceHistory(asin, price, maxLen = 30) {
   safeWriteStore(store);
 }
 
-export function getPriceHistory(asin) {
+export function getLowestPrice(asin) {
   const store = safeReadStore();
-  return store.priceHistory?.[asin] || [];
+  const history = store.priceHistory?.[asin];
+  if (!history || history.length === 0) return null;
+
+  return Math.min(...history.map(h => h.price));
 }
 
 export function canAlert(asin, cooldownHours = 12) {
   const store = safeReadStore();
-  const lastAlertTs = store.alertState?.[asin]?.lastAlertTs;
-  if (!lastAlertTs) return true;
+  const lastAlert = store.alertState?.[asin]?.lastAlertTs;
+  if (!lastAlert) return true;
 
-  const elapsed = Date.now() - lastAlertTs;
-  return elapsed >= cooldownHours * 60 * 60 * 1000;
+  return Date.now() - lastAlert >= cooldownHours * 3600 * 1000;
 }
 
 export function markAlerted(asin) {
   const store = safeReadStore();
-  store.alertState[asin] = store.alertState[asin] || {};
-  store.alertState[asin].lastAlertTs = Date.now();
+  store.alertState[asin] = { lastAlertTs: Date.now() };
   safeWriteStore(store);
 }
