@@ -1,13 +1,15 @@
 {
-  "name": "synapse-price-monitor",
-  "version": "1.0.0",
   "type": "module",
+  "name": "amazon-priceradar",
+  "version": "1.0.0",
+  "description": "Monitoramento de preços Amazon Brasil com scraping + alertas Telegram",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"
   },
   "dependencies": {
     "axios": "^1.6.0",
-    "node-cron": "^3.0.3"
+    "node-cron": "^3.0.3",
+    "dotenv": "^16.4.5"
   }
 }
