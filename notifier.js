@@ -1,91 +1,74 @@
 import fs from "fs";
-import path from "path";
 import axios from "axios";
 import { getAmazonPrice } from "./amazon.js";
+import {
+  addPriceHistory,
+  getLastPrice,
+  setLastPrice,
+  canAlert,
+  markAlerted
+} from "./store.js";
 
 const TELEGRAM_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID;
 
-const DATA_FILE = path.resolve("./store.json");
+// Ajustáveis via Railway Variables
+const DISCOUNT_THRESHOLD = Number(process.env.DISCOUNT_THRESHOLD_PERCENT || 15);
+const COOLDOWN_HOURS = Number(process.env.ALERT_COOLDOWN_HOURS || 12);
+const REQUEST_DELAY_MS = Number(process.env.REQUEST_DELAY_MS || 1200);
 
-// regra: queda mínima (%)
-const DISCOUNT_THRESHOLD = 15;
-
-// ---------- STORE ----------
-function loadStore() {
-  if (!fs.existsSync(DATA_FILE)) return {};
-  return JSON.parse(fs.readFileSync(DATA_FILE, "utf-8"));
+// Telegram Markdown (versão “Markdown” antiga) quebra fácil com caracteres do título
+function escapeMarkdown(text = "") {
+  return text
+    .replace(/_/g, "\\_")
+    .replace(/\*/g, "\\*")
+    .replace(/\[/g, "\\[")
+    .replace(/`/g, "\\`");
 }
 
-function saveStore(data) {
-  fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2));
+function brl(n) {
+  return n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
 
-// ---------- TELEGRAM ----------
+async function sleep(ms) {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
 async function sendTelegram({ title, oldPrice, newPrice, image, url }) {
+  if (!TELEGRAM_TOKEN || !TELEGRAM_CHAT_ID) {
+    console.log("⚠️ Telegram não configurado (TOKEN/CHAT_ID). Pulando alerta.");
+    return;
+  }
+
+  const safeTitle = escapeMarkdown(title);
   const text =
 `🔥 *OFERTA DETECTADA*
-📦 ${title}
+📦 ${safeTitle}
 
-💸 De R$ ${oldPrice.toFixed(2)}
-👉 Por R$ ${newPrice.toFixed(2)}
+💸 De ${brl(oldPrice)}
+👉 Por ${brl(newPrice)}
 
 🔗 ${url}`;
 
+  // 1) tenta com foto
   if (image) {
-    await axios.post(
-      `https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendPhoto`,
-      {
-        chat_id: TELEGRAM_CHAT_ID,
-        photo: image,
-        caption: text,
-        parse_mode: "Markdown"
-      }
-    );
-  } else {
-    await axios.post(
-      `https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`,
-      {
-        chat_id: TELEGRAM_CHAT_ID,
-        text,
-        parse_mode: "Markdown"
-      }
-    );
-  }
-}
-
-// ---------- MAIN ----------
-export async function runCheckOnce() {
-  const products = JSON.parse(fs.readFileSync("./products.json", "utf-8"));
-  const store = loadStore();
-
-  for (const product of products) {
-    const asin = product.asin;
-
-    const data = await getAmazonPrice(asin);
-    if (!data) continue;
-
-    const last = store[asin]?.price;
-
-    if (last) {
-      const drop = ((last - data.price) / last) * 100;
-
-      if (drop >= DISCOUNT_THRESHOLD) {
-        await sendTelegram({
-          title: data.title,
-          oldPrice: last,
-          newPrice: data.price,
-          image: data.image,
-          url: data.affiliateUrl
-        });
-      }
+    try {
+      await axios.post(
+        `https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendPhoto`,
+        {
+          chat_id: TELEGRAM_CHAT_ID,
+          photo: image,
+          caption: text,
+          parse_mode: "Markdown"
+        },
+        { timeout: 20000 }
+      );
+      return;
+    } catch (e) {
+      console.log("⚠️ sendPhoto falhou, tentando sendMessage:", e?.response?.data || e?.message || e);
     }
-
-    store[asin] = {
-      price: data.price,
-      updatedAt: new Date().toISOString()
-    };
   }
 
-  saveStore(store);
-}
+  // 2) fallback: só texto
+  await axios.post(
+    `https
