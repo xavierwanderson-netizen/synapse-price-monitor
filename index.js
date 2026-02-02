@@ -1,54 +1,46 @@
 import "dotenv/config";
-import http from "http";
 import { runCheckOnce } from "./notifier.js";
 
-/**
- * ===============================
- * 1) SERVIDOR HTTP (HEALTHCHECK)
- * ===============================
- */
-const PORT = process.env.PORT || 3000;
-
-const server = http.createServer((req, res) => {
-  if (req.url === "/") {
-    res.writeHead(200, { "Content-Type": "text/plain" });
-    res.end("OK");
-    return;
+function mustEnv(name) {
+  const v = process.env[name];
+  if (!v) {
+    console.log(`⚠️ Variável ausente: ${name}`);
+    return false;
   }
-
-  res.writeHead(404);
-  res.end();
-});
-
-server.listen(PORT, () => {
-  console.log(`🌐 Healthcheck ativo na porta ${PORT}`);
-});
-
-/**
- * ===============================
- * 2) LOOP DO MONITOR
- * ===============================
- */
-const MINUTES = Number(process.env.CHECK_INTERVAL_MINUTES || 30);
-const INTERVAL = Math.max(1, MINUTES) * 60 * 1000;
-
-async function loop() {
-  try {
-    console.log("🔁 Rodando verificação de preços...");
-    await runCheckOnce();
-    console.log("✅ Verificação finalizada.");
-  } catch (err) {
-    console.error("❌ Erro no loop:", err?.message || err);
-  }
+  return true;
 }
 
-// roda imediatamente
-await loop();
+function getIntervalMs() {
+  const minutes = Number(process.env.CHECK_INTERVAL_MINUTES || 30);
+  const safeMinutes = Number.isFinite(minutes) && minutes > 0 ? minutes : 30;
+  return safeMinutes * 60 * 1000;
+}
 
-// agenda
-setInterval(loop, INTERVAL);
+async function main() {
+  console.log("🚀 Iniciando Amazon Price Monitor (scraping como fonte de preço)");
+  console.log("⏱️ Intervalo (min):", process.env.CHECK_INTERVAL_MINUTES || 30);
+  console.log("🏷️ Partner tag:", process.env.AMAZON_PARTNER_TAG || "(vazio)");
 
-// mantém processo vivo
-process.stdin.resume();
+  // Telegram é opcional (roda mesmo sem), mas vamos avisar
+  mustEnv("TELEGRAM_BOT_TOKEN");
+  mustEnv("TELEGRAM_CHAT_ID");
 
-console.log(`⏱️ Monitor ativo | intervalo: ${MINUTES} minutos`);
+  // Primeira execução imediata
+  try {
+    await runCheckOnce();
+  } catch (e) {
+    console.log("❌ Erro na primeira execução:", e?.message || e);
+  }
+
+  // Loop
+  const intervalMs = getIntervalMs();
+  setInterval(async () => {
+    try {
+      await runCheckOnce();
+    } catch (e) {
+      console.log("❌ Erro no loop:", e?.message || e);
+    }
+  }, intervalMs);
+}
+
+main();
