@@ -1,87 +1,25 @@
-import crypto from "crypto";
 import axios from "axios";
+import crypto from "crypto";
+import cheerio from "cheerio";
 
-/**
- * Amazon Product Advertising API – v2.1
- * Implementação segura e defensiva
- * Compatível com credencial (ID + Segredo) — sem AKIA
- */
-
-const ACCESS_KEY = process.env.AMAZON_ACCESS_KEY; // ID da credencial
-const SECRET_KEY = process.env.AMAZON_SECRET_KEY; // Segredo
-const PARTNER_TAG = process.env.AMAZON_PARTNER_TAG;
-
+/* ===============================
+   CONFIG
+   =============================== */
 const REGION = "us-east-1";
 const SERVICE = "ProductAdvertisingAPI";
 const HOST = "webservices.amazon.com.br";
 const ENDPOINT = `https://${HOST}/paapi5/getitems`;
 
-/**
- * Função principal chamada pelo index.js
- */
-export async function getAmazonPrice(asin) {
-  try {
-    if (!ACCESS_KEY || !SECRET_KEY || !PARTNER_TAG) {
-      console.log(`⚠️ Credenciais Amazon ausentes. Pulando ASIN ${asin}`);
-      return null;
-    }
+const ACCESS_KEY = process.env.AMAZON_ACCESS_KEY;
+const SECRET_KEY = process.env.AMAZON_SECRET_KEY;
+const PARTNER_TAG = process.env.AMAZON_PARTNER_TAG;
 
-    console.log(`🔎 Consultando preço do ASIN ${asin}`);
-
-    const payload = {
-      ItemIds: [asin],
-      Resources: [
-        "ItemInfo.Title",
-        "Offers.Listings.Price",
-        "Images.Primary.Large"
-      ],
-      PartnerTag: PARTNER_TAG,
-      PartnerType: "Associates",
-      Marketplace: "www.amazon.com.br"
-    };
-
-    const body = JSON.stringify(payload);
-    const headers = signRequest(body);
-
-    const response = await axios.post(ENDPOINT, body, {
-      headers,
-      timeout: 15000
-    });
-
-    const item = response.data?.ItemsResult?.Items?.[0];
-    if (!item) return null;
-
-    const title = item.ItemInfo?.Title?.DisplayValue || null;
-    const price = item.Offers?.Listings?.[0]?.Price?.Amount || null;
-    const image = item.Images?.Primary?.Large?.URL || null;
-
-    if (!title || !price) return null;
-
-    return {
-      title,
-      price,
-      image,
-      affiliateUrl: `https://www.amazon.com.br/dp/${asin}?tag=${PARTNER_TAG}`
-    };
-
-  } catch (error) {
-    const msg =
-      error.response?.data?.Errors?.[0]?.Message ||
-      error.response?.statusText ||
-      error.message;
-
-    console.error(`❌ Erro Amazon ASIN ${asin}: ${msg}`);
-    return null; // NUNCA quebra o sistema
-  }
-}
-
-/**
- * Assinatura Amazon PA-API (SigV4 custom)
- */
-function signRequest(body) {
-  const now = new Date();
-  const amzDate = now.toISOString().replace(/[:-]|\.\d{3}/g, "");
-  const dateStamp = amzDate.substring(0, 8);
+/* ===============================
+   AMAZON PA-API (GET ITEMS)
+   =============================== */
+function signRequest(payload) {
+  const amzDate = new Date().toISOString().replace(/[:-]|\.\d{3}/g, "");
+  const dateStamp = amzDate.slice(0, 8);
 
   const canonicalHeaders =
     `content-encoding:amz-1.0\n` +
@@ -92,45 +30,152 @@ function signRequest(body) {
   const signedHeaders =
     "content-encoding;content-type;host;x-amz-date";
 
-  const payloadHash = sha256(body);
+  const payloadHash = crypto
+    .createHash("sha256")
+    .update(JSON.stringify(payload))
+    .digest("hex");
 
   const canonicalRequest =
-    `POST\n/paapi5/getitems\n\n${canonicalHeaders}\n${signedHeaders}\n${payloadHash}`;
+    `POST\n/paapi5/getitems\n\n` +
+    canonicalHeaders +
+    `\n${signedHeaders}\n${payloadHash}`;
+
+  const algorithm = "AWS4-HMAC-SHA256";
+  const credentialScope = `${dateStamp}/${REGION}/${SERVICE}/aws4_request`;
 
   const stringToSign =
-    `AWS4-HMAC-SHA256\n${amzDate}\n${dateStamp}/${REGION}/${SERVICE}/aws4_request\n${sha256(canonicalRequest)}`;
+    `${algorithm}\n${amzDate}\n${credentialScope}\n` +
+    crypto.createHash("sha256").update(canonicalRequest).digest("hex");
 
-  const signingKey = getSignatureKey(
-    SECRET_KEY,
-    dateStamp,
-    REGION,
-    SERVICE
-  );
+  const kDate = crypto
+    .createHmac("sha256", "AWS4" + SECRET_KEY)
+    .update(dateStamp)
+    .digest();
+  const kRegion = crypto.createHmac("sha256", kDate).update(REGION).digest();
+  const kService = crypto.createHmac("sha256", kRegion).update(SERVICE).digest();
+  const kSigning = crypto
+    .createHmac("sha256", kService)
+    .update("aws4_request")
+    .digest();
 
-  const signature = hmac(signingKey, stringToSign);
+  const signature = crypto
+    .createHmac("sha256", kSigning)
+    .update(stringToSign)
+    .digest("hex");
+
+  const authorization =
+    `${algorithm} Credential=${ACCESS_KEY}/${credentialScope}, ` +
+    `SignedHeaders=${signedHeaders}, Signature=${signature}`;
+
+  return { authorization, amzDate };
+}
+
+async function getFromApi(asin) {
+  const payload = {
+    ItemIds: [asin],
+    Resources: [
+      "ItemInfo.Title",
+      "Offers.Listings.Price",
+      "Images.Primary.Large"
+    ],
+    PartnerTag: PARTNER_TAG,
+    PartnerType: "Associates",
+    Marketplace: "www.amazon.com.br"
+  };
+
+  const { authorization, amzDate } = signRequest(payload);
+
+  const res = await axios.post(ENDPOINT, payload, {
+    headers: {
+      "Content-Type": "application/json; charset=utf-8",
+      "Content-Encoding": "amz-1.0",
+      "X-Amz-Date": amzDate,
+      Authorization: authorization
+    },
+    timeout: 15000
+  });
+
+  const item = res.data?.ItemsResult?.Items?.[0];
+  if (!item) return null;
+
+  const price =
+    item?.Offers?.Listings?.[0]?.Price?.Amount ?? null;
+
+  if (!price) return null;
 
   return {
-    "Content-Type": "application/json; charset=utf-8",
-    "Content-Encoding": "amz-1.0",
-    "X-Amz-Date": amzDate,
-    "Authorization":
-      `AWS4-HMAC-SHA256 Credential=${ACCESS_KEY}/${dateStamp}/${REGION}/${SERVICE}/aws4_request, SignedHeaders=${signedHeaders}, Signature=${signature}`
+    title: item.ItemInfo.Title.DisplayValue,
+    price,
+    image: item.Images.Primary.Large.URL,
+    affiliateUrl: `https://www.amazon.com.br/dp/${asin}?tag=${PARTNER_TAG}`
   };
 }
 
-/* Helpers */
+/* ===============================
+   FALLBACK SCRAPING
+   =============================== */
+async function getFromScraping(asin) {
+  const url = `https://www.amazon.com.br/dp/${asin}`;
 
-function sha256(value) {
-  return crypto.createHash("sha256").update(value, "utf8").digest("hex");
+  const res = await axios.get(url, {
+    headers: {
+      "User-Agent":
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/122 Safari/537.36",
+      "Accept-Language": "pt-BR,pt;q=0.9"
+    },
+    timeout: 15000
+  });
+
+  const $ = cheerio.load(res.data);
+
+  const title =
+    $("#productTitle").text().trim() ||
+    $("h1 span").first().text().trim();
+
+  let priceText =
+    $("#priceblock_dealprice").text() ||
+    $("#priceblock_ourprice").text() ||
+    $(".a-price .a-offscreen").first().text();
+
+  if (!priceText) return null;
+
+  const price = Number(
+    priceText
+      .replace("R$", "")
+      .replace(".", "")
+      .replace(",", ".")
+      .trim()
+  );
+
+  if (!price || isNaN(price)) return null;
+
+  const image =
+    $("#imgTagWrapperId img").attr("src") ||
+    $("#landingImage").attr("src");
+
+  return {
+    title,
+    price,
+    image,
+    affiliateUrl: `${url}?tag=${PARTNER_TAG}`
+  };
 }
 
-function hmac(key, data) {
-  return crypto.createHmac("sha256", key).update(data, "utf8").digest("hex");
-}
+/* ===============================
+   EXPORT PRINCIPAL
+   =============================== */
+export async function getAmazonPrice(asin) {
+  try {
+    // 1️⃣ tenta PA-API
+    const apiData = await getFromApi(asin);
+    if (apiData) return apiData;
 
-function getSignatureKey(secret, date, region, service) {
-  const kDate = crypto.createHmac("sha256", "AWS4" + secret).update(date).digest();
-  const kRegion = crypto.createHmac("sha256", kDate).update(region).digest();
-  const kService = crypto.createHmac("sha256", kRegion).update(service).digest();
-  return crypto.createHmac("sha256", kService).update("aws4_request").digest();
+    // 2️⃣ fallback scraping
+    console.warn(`⚠️ PA-API indisponível para ${asin}, usando scraping`);
+    return await getFromScraping(asin);
+
+  } catch (error) {
+    console.error(`❌ Falha total ASIN ${asin}:`, error.message);
+    return null;
+  }
 }
