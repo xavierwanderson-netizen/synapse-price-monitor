@@ -17,12 +17,14 @@ const DISCOUNT_THRESHOLD = Number(process.env.DISCOUNT_THRESHOLD_PERCENT || 15);
 const COOLDOWN_HOURS = Number(process.env.ALERT_COOLDOWN_HOURS || 12);
 const REQUEST_DELAY_MS = Number(process.env.REQUEST_DELAY_MS || 1200);
 
-// Telegram Markdown (versão “Markdown” antiga) quebra fácil com caracteres do título
+// Markdown antigo quebra fácil; escapamos caracteres mais problemáticos
 function escapeMarkdown(text = "") {
-  return text
+  return String(text)
+    .replace(/\\/g, "\\\\")
     .replace(/_/g, "\\_")
     .replace(/\*/g, "\\*")
     .replace(/\[/g, "\\[")
+    .replace(/\]/g, "\\]")
     .replace(/`/g, "\\`");
 }
 
@@ -36,11 +38,11 @@ async function sleep(ms) {
 
 async function sendTelegram({ title, oldPrice, newPrice, image, url }) {
   if (!TELEGRAM_TOKEN || !TELEGRAM_CHAT_ID) {
-    console.log("⚠️ Telegram não configurado (TOKEN/CHAT_ID). Pulando alerta.");
+    console.log("⚠️ Telegram não configurado (TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID).");
     return;
   }
 
-  const safeTitle = escapeMarkdown(title);
+  const safeTitle = escapeMarkdown(title || "");
   const text =
 `🔥 *OFERTA DETECTADA*
 📦 ${safeTitle}
@@ -69,7 +71,7 @@ async function sendTelegram({ title, oldPrice, newPrice, image, url }) {
     }
   }
 
-  // 2) fallback: só texto
+  // 2) fallback só texto
   await axios.post(
     `https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`,
     {
@@ -89,13 +91,16 @@ export async function runCheckOnce() {
 
     try {
       const data = await getAmazonPrice(asin);
-      if (!data?.price) {
-        console.log(`⚠️ [${asin}] sem preço (scraping falhou / página mudou).`);
+
+      if (!data?.price || data.price <= 0) {
+        console.log(`⚠️ [${asin}] sem preço (scraping falhou / indisponível / página mudou).`);
         await sleep(REQUEST_DELAY_MS);
         continue;
       }
 
       const last = getLastPrice(asin);
+
+      // guarda histórico (opcional, mas útil para auditoria)
       addPriceHistory(asin, data.price);
 
       if (last != null) {
@@ -103,8 +108,7 @@ export async function runCheckOnce() {
 
         const shouldAlert =
           drop >= DISCOUNT_THRESHOLD &&
-          canAlert(asin, COOLDOWN_HOURS) &&
-          data.price > 0;
+          canAlert(asin, COOLDOWN_HOURS);
 
         console.log(
           `📌 [${asin}] last=${last} now=${data.price} drop=${drop.toFixed(2)}% alert=${shouldAlert}`
@@ -124,12 +128,17 @@ export async function runCheckOnce() {
         console.log(`🆕 [${asin}] primeiro preço capturado: ${data.price}`);
       }
 
+      // sempre atualiza lastPrice
       setLastPrice(asin, data.price);
     } catch (err) {
-      console.log(`❌ [${asin}] erro no check:`, err?.response?.status, err?.message || err);
+      console.log(
+        `❌ [${asin}] erro no check:`,
+        err?.response?.status,
+        err?.message || err
+      );
     }
 
-    // pequeno delay entre produtos para reduzir bloqueio
+    // delay curto entre produtos (reduz chance de bloqueio e melhora estabilidade)
     await sleep(REQUEST_DELAY_MS);
   }
 }
