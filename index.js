@@ -2,8 +2,9 @@ import fs from "fs";
 import path from "path";
 import cron from "node-cron";
 import { fileURLToPath } from "url";
-import { checkAmazonPrice } from "./amazon.js";
-import { notifyWhatsApp } from "./notifier.js";
+import { fetchAmazonData } from "./amazon.js";
+import { notifyTelegram } from "./notifier.js";
+import { getLastPrice, setLastPrice } from "./store.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -15,28 +16,53 @@ console.log("🚀 Synapse Price Monitor iniciado");
 console.log(`📦 Produtos carregados: ${products.length}`);
 
 const INTERVAL_MINUTES = Number(process.env.CHECK_INTERVAL_MINUTES || 30);
+const DROP_PERCENT = Number(process.env.PRICE_DROP_PERCENT || 5);
 
 cron.schedule(`*/${INTERVAL_MINUTES} * * * *`, async () => {
   console.log("⏱️ Verificando preços...");
 
   for (const product of products) {
-    try {
-      const price = await checkAmazonPrice(product.asin);
-      console.log(`🔍 ${product.name} → R$ ${price}`);
+    const fallbackTitle = product.title || product.name;
+    const lastPrice = getLastPrice(product.asin);
 
-      if (product.targetPrice && price <= product.targetPrice) {
-        await notifyWhatsApp(
-          `🔥 PROMOÇÃO DETECTADA
+    const data = await fetchAmazonData(product.asin, fallbackTitle);
 
-${product.name}
-💰 R$ ${price}
-
-${product.url}`
-        );
-      }
-    } catch (err) {
-      console.error(`Erro no produto ${product.asin}:`, err.message);
+    if (!data.price) {
+      console.log(`⚠️ Preço não encontrado para ${data.title} (${product.asin})`);
+      continue;
     }
+
+    if (lastPrice) {
+      const diff = lastPrice - data.price;
+      const dropPercent = (diff / lastPrice) * 100;
+
+      console.log(
+        `🔎 ${data.title} → R$ ${data.price} (anterior: R$ ${lastPrice}, queda: ${dropPercent.toFixed(
+          2
+        )}%)`
+      );
+
+      if (data.price < lastPrice && dropPercent >= DROP_PERCENT) {
+        const message = [
+          "🔥 PROMOÇÃO DETECTADA",
+          "",
+          data.title,
+          `💰 R$ ${data.price}`,
+          `📉 Queda: ${dropPercent.toFixed(2)}%`,
+          "",
+          data.url,
+        ].join("\n");
+
+        await notifyTelegram({
+          text: message,
+          imageUrl: data.imageUrl,
+        });
+      }
+    } else {
+      console.log(`🔎 ${data.title} → R$ ${data.price} (primeira coleta)`);
+    }
+
+    setLastPrice(product.asin, data.price);
   }
 });
 
