@@ -1,25 +1,25 @@
 import "dotenv/config";
 import { runCheckOnce } from "./notifier.js";
 
-const minutes = Number(process.env.CHECK_INTERVAL_MINUTES || 30);
-const intervalMs = Math.max(1, minutes) * 60 * 1000;
+// intervalo em minutos (Railway Variable)
+const MINUTES = Number(process.env.CHECK_INTERVAL_MINUTES || 30);
+const INTERVAL = Math.max(1, MINUTES) * 60 * 1000;
 
 async function loop() {
   try {
-    console.log("✅ Rodando verificação...");
+    console.log("🔁 Iniciando verificação de preços...");
     await runCheckOnce();
-    console.log("✅ Verificação finalizada.");
+    console.log("✅ Verificação concluída.");
   } catch (err) {
-    console.error("❌ Erro no loop:", err?.message || err);
+    console.error("❌ Erro no loop principal:", err?.message || err);
   }
 }
 
-// roda uma vez ao iniciar
+// roda imediatamente ao subir
 await loop();
 
-// mantém rodando para sempre
-setInterval(loop, intervalMs);
-
-// impede Railway de “encerrar”
+// mantém processo vivo
+setInterval(loop, INTERVAL);
 process.stdin.resume();
-console.log(`⏱️ Agendado para rodar a cada ${minutes} minutos.`);
+
+console.log(`⏱️ Monitor ativo | intervalo: ${MINUTES} minutos`);
