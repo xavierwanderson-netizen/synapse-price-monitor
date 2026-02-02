@@ -3,8 +3,7 @@ import axios from "axios";
 import { getAmazonPrice } from "./amazon.js";
 import {
   addPriceHistory,
-  getLastPrice,
-  setLastPrice,
+  getLowestPrice,
   canAlert,
   markAlerted
 } from "./store.js";
@@ -12,133 +11,76 @@ import {
 const TELEGRAM_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID;
 
-// Ajustáveis via Railway Variables
 const DISCOUNT_THRESHOLD = Number(process.env.DISCOUNT_THRESHOLD_PERCENT || 15);
 const COOLDOWN_HOURS = Number(process.env.ALERT_COOLDOWN_HOURS || 12);
 const REQUEST_DELAY_MS = Number(process.env.REQUEST_DELAY_MS || 1200);
 
-// Markdown antigo quebra fácil; escapamos caracteres mais problemáticos
-function escapeMarkdown(text = "") {
-  return String(text)
-    .replace(/\\/g, "\\\\")
-    .replace(/_/g, "\\_")
-    .replace(/\*/g, "\\*")
-    .replace(/\[/g, "\\[")
-    .replace(/\]/g, "\\]")
-    .replace(/`/g, "\\`");
-}
-
-function brl(n) {
-  return n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+function brl(v) {
+  return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
 
 async function sleep(ms) {
-  return new Promise((r) => setTimeout(r, ms));
+  return new Promise(r => setTimeout(r, ms));
 }
 
-async function sendTelegram({ title, oldPrice, newPrice, image, url }) {
-  if (!TELEGRAM_TOKEN || !TELEGRAM_CHAT_ID) {
-    console.log("⚠️ Telegram não configurado (TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID).");
-    return;
-  }
-
-  const safeTitle = escapeMarkdown(title || "");
+async function sendTelegram({ title, oldPrice, newPrice, url }) {
   const text =
-`🔥 *OFERTA DETECTADA*
-📦 ${safeTitle}
+`🔥 *MELHOR PREÇO HISTÓRICO*
+📦 ${title}
 
-💸 De ${brl(oldPrice)}
-👉 Por ${brl(newPrice)}
+📉 Menor histórico: ${brl(oldPrice)}
+🔥 Agora: ${brl(newPrice)}
 
 🔗 ${url}`;
 
-  // 1) tenta com foto
-  if (image) {
-    try {
-      await axios.post(
-        `https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendPhoto`,
-        {
-          chat_id: TELEGRAM_CHAT_ID,
-          photo: image,
-          caption: text,
-          parse_mode: "Markdown"
-        },
-        { timeout: 20000 }
-      );
-      return;
-    } catch (e) {
-      console.log("⚠️ sendPhoto falhou, tentando sendMessage:", e?.response?.data || e?.message || e);
-    }
-  }
-
-  // 2) fallback só texto
   await axios.post(
     `https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`,
     {
       chat_id: TELEGRAM_CHAT_ID,
       text,
       parse_mode: "Markdown"
-    },
-    { timeout: 20000 }
+    }
   );
 }
 
 export async function runCheckOnce() {
   const products = JSON.parse(fs.readFileSync("./products.json", "utf-8"));
 
-  for (const product of products) {
-    const asin = product.asin;
-
+  for (const { asin, title } of products) {
     try {
       const data = await getAmazonPrice(asin);
+      if (!data?.price) continue;
 
-      if (!data?.price || data.price <= 0) {
-        console.log(`⚠️ [${asin}] sem preço (scraping falhou / indisponível / página mudou).`);
-        await sleep(REQUEST_DELAY_MS);
-        continue;
-      }
-
-      const last = getLastPrice(asin);
-
-      // guarda histórico (opcional, mas útil para auditoria)
       addPriceHistory(asin, data.price);
 
-      if (last != null) {
-        const drop = ((last - data.price) / last) * 100;
+      const lowest = getLowestPrice(asin);
+      if (!lowest) continue;
 
-        const shouldAlert =
-          drop >= DISCOUNT_THRESHOLD &&
-          canAlert(asin, COOLDOWN_HOURS);
+      const drop = ((lowest - data.price) / lowest) * 100;
 
-        console.log(
-          `📌 [${asin}] last=${last} now=${data.price} drop=${drop.toFixed(2)}% alert=${shouldAlert}`
-        );
+      const shouldAlert =
+        data.price < lowest &&
+        Math.abs(drop) >= DISCOUNT_THRESHOLD &&
+        canAlert(asin, COOLDOWN_HOURS);
 
-        if (shouldAlert) {
-          await sendTelegram({
-            title: data.title || product.title || `Produto ${asin}`,
-            oldPrice: last,
-            newPrice: data.price,
-            image: data.image || null,
-            url: data.affiliateUrl
-          });
-          markAlerted(asin);
-        }
-      } else {
-        console.log(`🆕 [${asin}] primeiro preço capturado: ${data.price}`);
+      console.log(
+        `📊 [${asin}] lowest=${lowest} now=${data.price} drop=${drop.toFixed(2)}% alert=${shouldAlert}`
+      );
+
+      if (shouldAlert) {
+        await sendTelegram({
+          title: data.title || title || asin,
+          oldPrice: lowest,
+          newPrice: data.price,
+          url: data.affiliateUrl
+        });
+        markAlerted(asin);
       }
 
-      // sempre atualiza lastPrice
-      setLastPrice(asin, data.price);
-    } catch (err) {
-      console.log(
-        `❌ [${asin}] erro no check:`,
-        err?.response?.status,
-        err?.message || err
-      );
+    } catch (e) {
+      console.log(`❌ [${asin}] erro:`, e.message);
     }
 
-    // delay curto entre produtos (reduz chance de bloqueio e melhora estabilidade)
     await sleep(REQUEST_DELAY_MS);
   }
 }
