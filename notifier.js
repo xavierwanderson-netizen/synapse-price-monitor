@@ -71,4 +71,65 @@ async function sendTelegram({ title, oldPrice, newPrice, image, url }) {
 
   // 2) fallback: só texto
   await axios.post(
-    `https
+    `https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`,
+    {
+      chat_id: TELEGRAM_CHAT_ID,
+      text,
+      parse_mode: "Markdown"
+    },
+    { timeout: 20000 }
+  );
+}
+
+export async function runCheckOnce() {
+  const products = JSON.parse(fs.readFileSync("./products.json", "utf-8"));
+
+  for (const product of products) {
+    const asin = product.asin;
+
+    try {
+      const data = await getAmazonPrice(asin);
+      if (!data?.price) {
+        console.log(`⚠️ [${asin}] sem preço (scraping falhou / página mudou).`);
+        await sleep(REQUEST_DELAY_MS);
+        continue;
+      }
+
+      const last = getLastPrice(asin);
+      addPriceHistory(asin, data.price);
+
+      if (last != null) {
+        const drop = ((last - data.price) / last) * 100;
+
+        const shouldAlert =
+          drop >= DISCOUNT_THRESHOLD &&
+          canAlert(asin, COOLDOWN_HOURS) &&
+          data.price > 0;
+
+        console.log(
+          `📌 [${asin}] last=${last} now=${data.price} drop=${drop.toFixed(2)}% alert=${shouldAlert}`
+        );
+
+        if (shouldAlert) {
+          await sendTelegram({
+            title: data.title || product.title || `Produto ${asin}`,
+            oldPrice: last,
+            newPrice: data.price,
+            image: data.image || null,
+            url: data.affiliateUrl
+          });
+          markAlerted(asin);
+        }
+      } else {
+        console.log(`🆕 [${asin}] primeiro preço capturado: ${data.price}`);
+      }
+
+      setLastPrice(asin, data.price);
+    } catch (err) {
+      console.log(`❌ [${asin}] erro no check:`, err?.response?.status, err?.message || err);
+    }
+
+    // pequeno delay entre produtos para reduzir bloqueio
+    await sleep(REQUEST_DELAY_MS);
+  }
+}
