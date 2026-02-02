@@ -1,120 +1,98 @@
 import axios from "axios";
-import crypto from "crypto";
 import cheerio from "cheerio";
 
 /* ===============================
-   CONFIG
+   CONFIG GERAL
    =============================== */
-const REGION = "us-east-1";
-const SERVICE = "ProductAdvertisingAPI";
-const HOST = "webservices.amazon.com.br";
-const ENDPOINT = `https://${HOST}/paapi5/getitems`;
-
-const ACCESS_KEY = process.env.AMAZON_ACCESS_KEY;
-const SECRET_KEY = process.env.AMAZON_SECRET_KEY;
 const PARTNER_TAG = process.env.AMAZON_PARTNER_TAG;
 
+// Creators API (OAuth 2.0)
+const CREATORS_TOKEN_URL =
+  "https://creatorsapi.auth.us-west-2.amazoncognito.com/oauth2/token";
+const CREATORS_API_BASE =
+  "https://creatorsapi.amazon/catalog/v1";
+
+const CREDENTIAL_ID = process.env.AMAZON_ACCESS_KEY;     // Credential ID
+const CREDENTIAL_SECRET = process.env.AMAZON_SECRET_KEY; // Credential Secret
+const CREDENTIAL_VERSION = "2.1"; // BR = 2.1
+const MARKETPLACE = "www.amazon.com.br";
+
 /* ===============================
-   AMAZON PA-API (GET ITEMS)
+   CACHE DE TOKEN (1 HORA)
    =============================== */
-function signRequest(payload) {
-  const amzDate = new Date().toISOString().replace(/[:-]|\.\d{3}/g, "");
-  const dateStamp = amzDate.slice(0, 8);
+let cachedToken = null;
+let tokenExpiresAt = 0;
 
-  const canonicalHeaders =
-    `content-encoding:amz-1.0\n` +
-    `content-type:application/json; charset=utf-8\n` +
-    `host:${HOST}\n` +
-    `x-amz-date:${amzDate}\n`;
+async function getCreatorsToken() {
+  const now = Date.now();
+  if (cachedToken && now < tokenExpiresAt) return cachedToken;
 
-  const signedHeaders =
-    "content-encoding;content-type;host;x-amz-date";
+  const auth = Buffer.from(
+    `${CREDENTIAL_ID}:${CREDENTIAL_SECRET}`
+  ).toString("base64");
 
-  const payloadHash = crypto
-    .createHash("sha256")
-    .update(JSON.stringify(payload))
-    .digest("hex");
+  const res = await axios.post(
+    CREATORS_TOKEN_URL,
+    "grant_type=client_credentials&scope=creatorsapi/default",
+    {
+      headers: {
+        Authorization: `Basic ${auth}`,
+        "Content-Type": "application/x-www-form-urlencoded"
+      },
+      timeout: 15000
+    }
+  );
 
-  const canonicalRequest =
-    `POST\n/paapi5/getitems\n\n` +
-    canonicalHeaders +
-    `\n${signedHeaders}\n${payloadHash}`;
-
-  const algorithm = "AWS4-HMAC-SHA256";
-  const credentialScope = `${dateStamp}/${REGION}/${SERVICE}/aws4_request`;
-
-  const stringToSign =
-    `${algorithm}\n${amzDate}\n${credentialScope}\n` +
-    crypto.createHash("sha256").update(canonicalRequest).digest("hex");
-
-  const kDate = crypto
-    .createHmac("sha256", "AWS4" + SECRET_KEY)
-    .update(dateStamp)
-    .digest();
-  const kRegion = crypto.createHmac("sha256", kDate).update(REGION).digest();
-  const kService = crypto.createHmac("sha256", kRegion).update(SERVICE).digest();
-  const kSigning = crypto
-    .createHmac("sha256", kService)
-    .update("aws4_request")
-    .digest();
-
-  const signature = crypto
-    .createHmac("sha256", kSigning)
-    .update(stringToSign)
-    .digest("hex");
-
-  const authorization =
-    `${algorithm} Credential=${ACCESS_KEY}/${credentialScope}, ` +
-    `SignedHeaders=${signedHeaders}, Signature=${signature}`;
-
-  return { authorization, amzDate };
-}
-
-async function getFromApi(asin) {
-  const payload = {
-    ItemIds: [asin],
-    Resources: [
-      "ItemInfo.Title",
-      "Offers.Listings.Price",
-      "Images.Primary.Large"
-    ],
-    PartnerTag: PARTNER_TAG,
-    PartnerType: "Associates",
-    Marketplace: "www.amazon.com.br"
-  };
-
-  const { authorization, amzDate } = signRequest(payload);
-
-  const res = await axios.post(ENDPOINT, payload, {
-    headers: {
-      "Content-Type": "application/json; charset=utf-8",
-      "Content-Encoding": "amz-1.0",
-      "X-Amz-Date": amzDate,
-      Authorization: authorization
-    },
-    timeout: 15000
-  });
-
-  const item = res.data?.ItemsResult?.Items?.[0];
-  if (!item) return null;
-
-  const price =
-    item?.Offers?.Listings?.[0]?.Price?.Amount ?? null;
-
-  if (!price) return null;
-
-  return {
-    title: item.ItemInfo.Title.DisplayValue,
-    price,
-    image: item.Images.Primary.Large.URL,
-    affiliateUrl: `https://www.amazon.com.br/dp/${asin}?tag=${PARTNER_TAG}`
-  };
+  cachedToken = res.data.access_token;
+  tokenExpiresAt = now + (res.data.expires_in - 60) * 1000; // margem 1 min
+  return cachedToken;
 }
 
 /* ===============================
-   FALLBACK SCRAPING
+   CREATORS API — METADADOS
    =============================== */
-async function getFromScraping(asin) {
+async function getMetadataFromCreators(asin) {
+  try {
+    const token = await getCreatorsToken();
+
+    const res = await axios.post(
+      `${CREATORS_API_BASE}/getItems`,
+      {
+        itemIds: [asin],
+        partnerTag: PARTNER_TAG,
+        marketplace: MARKETPLACE,
+        resources: [
+          "itemInfo.title",
+          "images.primary.large"
+        ]
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${token}, Version ${CREDENTIAL_VERSION}`,
+          "Content-Type": "application/json",
+          "x-marketplace": MARKETPLACE
+        },
+        timeout: 15000
+      }
+    );
+
+    const item = res.data?.items?.[0];
+    if (!item) return {};
+
+    return {
+      title: item.itemInfo?.title?.displayValue || null,
+      image: item.images?.primary?.large?.url || null
+    };
+  } catch (err) {
+    console.warn(`⚠️ Creators API falhou para ${asin}`);
+    return {};
+  }
+}
+
+/* ===============================
+   SCRAPING — PREÇO REAL
+   =============================== */
+async function getPriceFromScraping(asin) {
   const url = `https://www.amazon.com.br/dp/${asin}`;
 
   const res = await axios.get(url, {
@@ -128,10 +106,6 @@ async function getFromScraping(asin) {
 
   const $ = cheerio.load(res.data);
 
-  const title =
-    $("#productTitle").text().trim() ||
-    $("h1 span").first().text().trim();
-
   let priceText =
     $("#priceblock_dealprice").text() ||
     $("#priceblock_ourprice").text() ||
@@ -142,23 +116,14 @@ async function getFromScraping(asin) {
   const price = Number(
     priceText
       .replace("R$", "")
-      .replace(".", "")
+      .replace(/\./g, "")
       .replace(",", ".")
       .trim()
   );
 
   if (!price || isNaN(price)) return null;
 
-  const image =
-    $("#imgTagWrapperId img").attr("src") ||
-    $("#landingImage").attr("src");
-
-  return {
-    title,
-    price,
-    image,
-    affiliateUrl: `${url}?tag=${PARTNER_TAG}`
-  };
+  return price;
 }
 
 /* ===============================
@@ -166,13 +131,19 @@ async function getFromScraping(asin) {
    =============================== */
 export async function getAmazonPrice(asin) {
   try {
-    // 1️⃣ tenta PA-API
-    const apiData = await getFromApi(asin);
-    if (apiData) return apiData;
+    // 1️⃣ preço SEMPRE por scraping
+    const price = await getPriceFromScraping(asin);
+    if (!price) return null;
 
-    // 2️⃣ fallback scraping
-    console.warn(`⚠️ PA-API indisponível para ${asin}, usando scraping`);
-    return await getFromScraping(asin);
+    // 2️⃣ metadados pela Creators API (se disponível)
+    const meta = await getMetadataFromCreators(asin);
+
+    return {
+      title: meta.title || `Produto ${asin}`,
+      image: meta.image || null,
+      price,
+      affiliateUrl: `https://www.amazon.com.br/dp/${asin}?tag=${PARTNER_TAG}`
+    };
 
   } catch (error) {
     console.error(`❌ Falha total ASIN ${asin}:`, error.message);
