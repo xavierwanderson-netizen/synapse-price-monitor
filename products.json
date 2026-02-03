@@ -1,135 +1,342 @@
 [
-  { "asin": "B0BSVN58JW", "title": "Pilha Alcalina Elgin AAA Palito, Pack com 16 Unidades" },
-  { "asin": "B008X6TB08", "title": "Fone de Ouvido Philips TAUE101WT/00 com Microfone - Branco" },
-  { "asin": "B084S6N81P", "title": "Fone de Ouvido Philips TAUE101BK/00 com Microfone - Preto" },
-  { "asin": "B075TGQVHT", "title": "Fone de Ouvido Philips TAUE101WT/00 com Microfone - Branco" },
-  { "asin": "B0CQMT33WX", "title": "Fire TV Stick HD | Streaming em Full HD com Controle Remoto por Voz com Alexa" },
-  { "asin": "B0CP6CVJSG", "title": "Apple iPhone 15 (128 GB) — Preto" },
-  { "asin": "B09B8VGCR8", "title": "Echo Dot (4ª Geração): Smart Speaker com Alexa - Cor Preta" },
-  { "asin": "B078GSWP44", "title": "Pilhas Alcalinas Duracell AAA Palito, Embalagem com 16 Unidades" },
-  { "asin": "B0FPHYR6X8", "title": "Smartphone Samsung Galaxy A07 128GB 4G Wi-Fi Tela 6.6'' Dual Chip" },
-  { "asin": "B0CVCLGV1W", "title": "Smartwatch Samsung Galaxy Fit3, Bluetooth, Monitoramento de Sono - Grafite" },
-  { "asin": "B09G9FPGTN", "title": "Apple iPhone 13 (128 GB) - Meia-noite" },
-  { "asin": "B09SWW583J", "title": "Kindle 11ª Geração (Modelo 2022) – Tela de 6” 300 ppi - Cor Preta" },
-  { "asin": "B0D799298P", "title": "Câmera Inteligente Interna Wi-Fi Intelbras iM3 C Full HD (Substituta)" },
-  { "asin": "B016AFY200", "title": "Mouse Óptico Multilaser Classic MO251 USB Full Size 1200 DPI - Preto" },
-  { "asin": "B08929Z23S", "title": "Roteador TP-Link Archer C60 AC1350 (Substituto)" },
-  { "asin": "B0C1S6C6M2", "title": "Fone de Ouvido On-Ear JBL Tune 520BT Pure Bass - Preto" },
-  { "asin": "B073JYVKNX", "title": "Cartão de Memória SanDisk Ultra MicroSDXC 64GB UHS-I 100MB/s" },
-  { "asin": "B01E45T07G", "title": "Mouse Sem Fio Logitech M170 com Receptor USB e Pilha Inclusa - Cinza/Preto" },
-  { "asin": "B0CP9P6F3P", "title": "Xiaomi Redmi Note 13 4G 128GB / 6GB RAM (Versão Global) - Midnight Black" },
-  { "asin": "B08T9W5YQ5", "title": "Cabo Apple USB-C para Lightning (1 m) - Original (Validado)" },
-  { "asin": "B07Y5F5R4B", "title": "Smart Lâmpada Wi-Fi Positivo Casa Inteligente, LED 9W, E27, RGB" },
-  { "asin": "B078N6M7P4", "title": "Filtro de Linha iClamper Energia 5 Tomadas (Substituto)" },
-  { "asin": "B08T9W5YQ5", "title": "Carregador de Parede Samsung 25W USB-C Ultra Rápido - Preto" },
-  { "asin": "B08M9M7Y9W", "title": "Adaptador Bluetooth 5.0 USB Dongle Receptor de Áudio" },
-  { "asin": "B07659S39C", "title": "Suporte Articulado de Mesa F80N para Monitores de 17'' a 35'' ELG (Atualizado)" },
-  { "asin": "B0C6L7M2N3", "title": "Fone de Ouvido Xiaomi Redmi Buds 4 Active Bluetooth 5.3" },
-  { "asin": "B08H7S8L7N", "title": "Caixa de Som Portátil JBL Go 3 Bluetooth - Preta" },
-  { "asin": "B078GSVRLV", "title": "Pilhas Alcalinas Duracell AA Pequena, Embalagem com 16 Unidades" },
-  { "asin": "B0CJ9V8H7R", "title": "Fone de Ouvido Samsung Galaxy Buds FE Bluetooth - Grafite" },
-  { "asin": "B0B8PDL7D4", "title": "Hub USB-C 5 em 1 Baseus (Substituto)" },
-  { "asin": "B0BP5K696", "title": "Xiaomi Poco X7 5G 256GB 8GB RAM (Global Version) - Blue" },
-  { "asin": "B0DQLLZP94", "title": "Combo Teclado e Mouse Sem Fio Logitech MK270 com Conexão 2.4GHz" },
-  { "asin": "B0DT5LHPMX", "title": "Xiaomi Redmi Note 14 5G 256GB 8GB RAM - Graphite Black" },
-  { "asin": "B0DRG2WQ7K", "title": "Xiaomi Poco X7 Pro 5G 512GB 12GB RAM - Black" },
-  { "asin": "B0CDJ4L7CZ", "title": "Sanduicheira e Minigrill Cadence Click SAN251 220V" },
-  { "asin": "B08DFCF9HW", "title": "Liquidificador Oster Full OLIQ610 1400W 3,2L - Preto" },
-  { "asin": "B09XJL4B9H", "title": "Jogo de Potes Herméticos de Vidro Electrolux - 12 Unidades" },
-  { "asin": "B0B8PDL7D4", "title": "Garrafa Térmica Stanley Quick Flip 710ml - Polar" },
-  { "asin": "B0FNYHYV8V", "title": "Balança Digital de Cozinha SF-400 Alta Precisão até 10kg" },
-  { "asin": "B0BZJDLT6Z", "title": "Fritadeira Elétrica Air Fryer Mondial Oven 12L AFO-12L-BI - Preta" },
-  { "asin": "B0F256HPZJ", "title": "Refil Filtro para Purificador de Água Electrolux Acqua Pure PAPPCA50" },
-  { "asin": "B08X66RQ48", "title": "Purificador de Água Electrolux PE12G Gelada, Fria e Natural - Grafite" },
-  { "asin": "B0C6N9X7L7", "title": "Forma de Silicone para Air Fryer Redonda Reutilizável" },
-  { "asin": "B0766L8G8X", "title": "Jogo de Facas Tramontina Plenus com Lâminas em Aço Inox 9 Peças" },
-  { "asin": "B00A7Y6X8K", "title": "Garrafa Térmica Termolar Magic Pump 1L - Preta" },
-  { "asin": "B005EPRF6G", "title": "Moedor de Café Elétrico Hamilton Beach Automático" },
-  { "asin": "B0766K8K4H", "title": "Jogo de Panelas Tramontina Turim em Alumínio com Revestimento Interno Antiaderente 7 Peças" },
-  { "asin": "B07P7S9X9G", "title": "Batedeira Planetária Arno Deluxe Inox 600W - Preta" },
-  { "asin": "B07B9X7Y9Z", "title": "Cafeteira Italiana Moka de Alumínio para 6 Xícaras de Café" },
-  { "asin": "B08929Z23S", "title": "Processador de Alimentos Manual de 3 Lâminas 500ml" },
-  { "asin": "B0C2R9DDPJ", "title": "Limpador Cif Desengordurante Derrete Gordura Refil Econômico 450ml" },
-  { "asin": "B07DZ8VXQN", "title": "Detergente em Pó para Máquina de Lavar Louça Finish Advanced 1kg" },
-  { "asin": "B07HZMBBBQ", "title": "Lava Louças Líquido Ypê Neutro Galão 5L" },
-  { "asin": "B07FGYQCKM", "title": "Líquido Secante Abrilhantador Finish para Máquina de Lavar Louça 250ml" },
-  { "asin": "B087XSL3VH", "title": "Esponja Multiuso Esfrelux - Pack com 10 Unidades" },
-  { "asin": "B095ZN8T88", "title": "Limpador Sanitário Harpic Cloro Forte 500ml" },
-  { "asin": "B07HZNJJCD", "title": "Água Sanitária Ypê com Cloro Ativo Galão 5L" },
-  { "asin": "B0CSYPRC2Q", "title": "Detergente em Pó para Máquina de Lavar Louças Ypê 1kg" },
-  { "asin": "B07DTNB6SY", "title": "Limpador Cif Cremoso Multiuso 450ml - Original" },
-  { "asin": "B0BZWZ2385", "title": "Detergente em Pó para Lava-Louças Finish Power Powder 700g" },
-  { "asin": "B07V7H5VHK", "title": "Pano de Limpeza Reutilizável Scott Duramax - Rolo com 58 Folhas" },
-  { "asin": "B07FGYL6P7", "title": "Aspirador de Pó Vertical WAP Silent Speed 1000W 2 em 1" },
-  { "asin": "B0779BRVVS", "title": "Fita Dupla Face 3M Fixa Forte Fixação Extrema - 24mm x 2m" },
-  { "asin": "B0FWV14Q1W", "title": "Jogo de Ferramentas Kit Chaves de Precisão 115 em 1 para Eletrônicos" },
-  { "asin": "B0FGBP8J85", "title": "Mini Lanterna Tática LED Recarregável USB com Zoom" },
-  { "asin": "B09V1SM8QB", "title": "Parafusadeira e Furadeira WAP BPF 12V Li-ion" },
-  { "asin": "B07CV2JXNH", "title": "WD-40 Produto Multiuso Lubrificante Aerossol 300ml" },
-  { "asin": "B0FP9FF295", "title": "Compressor de Ar Portátil Recarregável para Pneus e Bolas" },
-  { "asin": "B07DDQ6MKF", "title": "Conjunto Placa para 1 Módulo Steck Stella 4x2 - Branco" },
-  { "asin": "B0F35GPLGV", "title": "Batata Pringles Pack Promocional com 3 Sabores (Original, Creme e Cebola, Churrasco)" },
-  { "asin": "B097BYXGXN", "title": "Ketchup Heinz Tradicional Frasco Pet 1,033kg" },
-  { "asin": "B0F2GMT6T3", "title": "Barra de Proteína Integralmédica Whey Crisp Bar 12 Unidades - Chocolate" },
-  { "asin": "B07HDSL78H", "title": "Café Orfeu Grãos Especial Clássico 1kg" },
-  { "asin": "B0CXV3LHQR", "title": "Cerveja Spaten Puro Malte - Pack com 8 Latas de 350ml" },
-  { "asin": "B09WTLQ53R", "title": "Ninho Fases 1 Composto Lácteo para Crianças de 1 a 3 anos - 800g" },
-  { "asin": "B07Y3RGS46", "title": "Pasta de Amendoim Integral Fit Food 450g" },
-  { "asin": "B07FN8T31H", "title": "Biscoito Caramelizado Lotus Biscoff 250g" },
-  { "asin": "B086F848JG", "title": "Café 3 Corações Moído Regiões Microlote Mogiana Paulista 250g" },
-  { "asin": "B0FMLBQ136", "title": "Creme Crocante KitKat Nestlé com Chocolate e Wafer - Balde 330g" },
-  { "asin": "B085D6F97D", "title": "A Metamorfose - Franz Kafka (Edição Especial)" },
-  { "asin": "B08769Y8K8", "title": "Café com Deus Pai 2026 - Júnior Rostirola" },
-  { "asin": "B09J5D1D5M", "title": "Patinando no Amor - Lynn Painter" },
-  { "asin": "B07N8P9N2K", "title": "A Empregada - Freida McFadden" },
-  { "asin": "B009M3M7Y9", "title": "A Hora da Estrela - Clarice Lispector (Edição Comemorativa)" },
-  { "asin": "B08L7S8L7N", "title": "Verity - Colleen Hoover" },
-  { "asin": "B07P7S9X9G", "title": "Nunca Minta - Freida McFadden" },
-  { "asin": "B00A7Y6X8K", "title": "Vidas Secas - Graciliano Ramos" },
-  { "asin": "B07X8M8K5P", "title": "Melhor do que nos Filmes - Lynn Painter" },
-  { "asin": "B08M9M7Y9W", "title": "Jantar Secreto - Raphael Montes" },
-  { "asin": "B07659S39C", "title": "O Alienista - Machado de Assis" },
-  { "asin": "B09XJL4B9H", "title": "O Massacre da Família Hope - Riley Sager" },
-  { "asin": "B0B8PDL7D4", "title": "A Biblioteca da Meia-Noite - Matt Haig" },
-  { "asin": "B0FNYHYV8V", "title": "O Príncipe - Nicolau Maquiavel (Edição de Luxo)" },
-  { "asin": "B0BZJDLT6Z", "title": "365 Hábitos Simples e Poderosos - Paulo Houch" },
-  { "asin": "B0F256HPZJ", "title": "A Arte da Guerra - Sun Tzu (Edição de Luxo)" },
-  { "asin": "B08X66RQ48", "title": "Caderno Universitário Tilibra 10 Matérias Zip 160 Folhas - Preto" },
-  { "asin": "B0C6N9X7L7", "title": "Kit 24 Canetas Marcador Permanente Ponta Dupla Touch Color" },
-  { "asin": "B0766L8G8X", "title": "Marca Texto Grifpen Estojo 6 Unidades - Faber-Castell" },
-  { "asin": "B0766K8K4H", "title": "Papel Chamequinho A4 75g 100 Folhas - Branco" },
-  { "asin": "B07P7S9X9G", "title": "Caneta Esferográfica Spiro CIS - Blister com 8 Unidades" },
-  { "asin": "B07B9X7Y9Z", "title": "Lápis de Cor Faber-Castell Supersoft 24 Cores" },
-  { "asin": "B08929Z23S", "title": "Papel Sulfite Chamex A4 75g 500 Folhas" },
-  { "asin": "B0C2R9DDPJ", "title": "Bloco Refil Caderno Inteligente Grande Pautado 90g" },
-  { "asin": "B07DZ8VXQN", "title": "Estojo Escolar Organizador Box Grande - Masculino/Feminino" },
-  { "asin": "B07HZMBBBQ", "title": "Caneta Hidrográfica 12 Cores Lavável - Faber-Castell" },
-  { "asin": "B07FGYQCKM", "title": "Calculadora Científica Casio fx-82MS 2ª Edição" },
-  { "asin": "B087XSL3VH", "title": "Organizador de Mesa Acrílico com 3 Divisórias" },
-  { "asin": "B095ZN8T88", "title": "Grampeador de Mesa para 20 Folhas - Tilibra" },
-  { "asin": "B07HZNJJCD", "title": "Quadro Branco Magnético 40x60cm com Moldura de Alumínio" },
-  { "asin": "B0CSYPRC2Q", "title": "Fita Adesiva Transparente 45mm x 40m - Adelbras" },
-  { "asin": "B07DTNB6SY", "title": "Tesoura Escolar com Ponta Arredondada - Tramontina" },
-  { "asin": "B0BZWZ2385", "title": "Cola em Bastão Pritt 40g - Pack com 2 Unidades" },
-  { "asin": "B07V7H5VHK", "title": "Apagador para Quadro Branco com Suporte para Caneta" },
-  { "asin": "B07FGYL6P7", "title": "Pasta Suspensa Kraft com Visor e Etiqueta - 10 Unidades" },
-  { "asin": "B0779BRVVS", "title": "Colônia Perfume Pet Cheirinho Bebê para Cães e Gatos" },
-  { "asin": "B0FWV14Q1W", "title": "Tapete Higiênico para Cães - Super Secão 30 Unidades" },
-  { "asin": "B0FGBP8J85", "title": "Ração para Gatos Adultos Whiskas Sabor Carne 10kg" },
-  { "asin": "B09V1SM8QB", "title": "Brinquedo para Cães Mordedor Interativo de Corda" },
-  { "asin": "B07CV2JXNH", "title": "Antipulgas e Carrapatos NexGard para Cães 10-25kg" },
-  { "asin": "B0FP9FF295", "title": "Fonte de Água para Gatos com Filtro de Carvão Ativado" },
-  { "asin": "B07DDQ6MKF", "title": "Petisco para Cães Doguitos Sabor Picanha 40g" },
-  { "asin": "B0F35GPLGV", "title": "Areia Sanitária para Gatos Viva Verde! Limpeza Completa 4kg" },
-  { "asin": "B097BYXGXN", "title": "Escova Pet para Cães e Gatos com Cerdas de Aço" },
-  { "asin": "B0F2GMT6T3", "title": "Cama para Pet Almofadada Tamanho M - Lavável" },
-  { "asin": "B07HDSL78H", "title": "Comedouro Lento para Cães Anti-Engasgo" },
-  { "asin": "B0CXV3LHQR", "title": "Shampoo para Cães e Gatos Neutro 500ml - Sanol Dog" },
-  { "asin": "B09WTLQ53R", "title": "Arranhador para Gatos com Brinquedo de Pena" },
-  { "asin": "B07Y3RGS46", "title": "Coleira Peitoral com Guia para Cães Pequeno Porte" },
-  { "asin": "B07FN8T31H", "title": "Caixa de Transporte para Pets N.1 - Aprovada para Viagens" }
-  { "asin": "B0CQMT33WX", "title": "Fire TV Stick HD (Geração mais recente) | Com controle remoto por voz com Alexa (inclui comandos de TV), controles de casa inteligente e streaming em HD" }
-  { "asin": "B0CSLPNYBG", "title": "Stanley - Copo de cerveja isolado, copo empilhável Stay Chill de 473 ml, para bebidas quentes ou frias" }
-  { "asin": "B08LK15F8N", "title": "Granado Sabonete Líquido Bebê, Tradicional, 500ml" }
-  { "asin": "B0D61T4KZ3", "title": "ICHEF POLISHOP Panela Home Sauté Petit Shark Series Vermelha de 20cm" }
+  {
+    "asin": "B0BSVN58JW",
+    "title": "Pilha Alcalina Elgin AAA Palito, Pack com 16 Unidades"
+  },
+  {
+    "asin": "B008X6TB08",
+    "title": "Fone de Ouvido Philips TAUE101WT/00 com Microfone - Branco"
+  },
+  {
+    "asin": "B084S6N81P",
+    "title": "Fone de Ouvido Philips TAUE101BK/00 com Microfone - Preto"
+  },
+  {
+    "asin": "B075TGQVHT",
+    "title": "Fone de Ouvido Philips TAUE101WT/00 com Microfone - Branco"
+  },
+  {
+    "asin": "B0CQMT33WX",
+    "title": "Fire TV Stick HD | Streaming em Full HD com Controle Remoto por Voz com Alexa"
+  },
+  {
+    "asin": "B0CP6CVJSG",
+    "title": "Apple iPhone 15 (128 GB) — Preto"
+  },
+  {
+    "asin": "B09B8VGCR8",
+    "title": "Echo Dot (4ª Geração): Smart Speaker com Alexa - Cor Preta"
+  },
+  {
+    "asin": "B078GSWP44",
+    "title": "Pilhas Alcalinas Duracell AAA Palito, Embalagem com 16 Unidades"
+  },
+  {
+    "asin": "B0FPHYR6X8",
+    "title": "Smartphone Samsung Galaxy A07 128GB 4G Wi-Fi Tela 6.6'' Dual Chip"
+  },
+  {
+    "asin": "B0CVCLGV1W",
+    "title": "Smartwatch Samsung Galaxy Fit3, Bluetooth, Monitoramento de Sono - Grafite"
+  },
+  {
+    "asin": "B09G9FPGTN",
+    "title": "Apple iPhone 13 (128 GB) - Meia-noite"
+  },
+  {
+    "asin": "B09SWW583J",
+    "title": "Kindle 11ª Geração (Modelo 2022) – Tela de 6” 300 ppi - Cor Preta"
+  },
+  {
+    "asin": "B0D799298P",
+    "title": "Câmera Inteligente Interna Wi-Fi Intelbras iM3 C Full HD (Substituta)"
+  },
+  {
+    "asin": "B016AFY200",
+    "title": "Mouse Óptico Multilaser Classic MO251 USB Full Size 1200 DPI - Preto"
+  },
+  {
+    "asin": "B08929Z23S",
+    "title": "Roteador TP-Link Archer C60 AC1350 (Substituto)"
+  },
+  {
+    "asin": "B0C1S6C6M2",
+    "title": "Fone de Ouvido On-Ear JBL Tune 520BT Pure Bass - Preto"
+  },
+  {
+    "asin": "B073JYVKNX",
+    "title": "Cartão de Memória SanDisk Ultra MicroSDXC 64GB UHS-I 100MB/s"
+  },
+  {
+    "asin": "B01E45T07G",
+    "title": "Mouse Sem Fio Logitech M170 com Receptor USB e Pilha Inclusa - Cinza/Preto"
+  },
+  {
+    "asin": "B0CP9P6F3P",
+    "title": "Xiaomi Redmi Note 13 4G 128GB / 6GB RAM (Versão Global) - Midnight Black"
+  },
+  {
+    "asin": "B08T9W5YQ5",
+    "title": "Cabo Apple USB-C para Lightning (1 m) - Original (Validado)"
+  },
+  {
+    "asin": "B07Y5F5R4B",
+    "title": "Smart Lâmpada Wi-Fi Positivo Casa Inteligente, LED 9W, E27, RGB"
+  },
+  {
+    "asin": "B078N6M7P4",
+    "title": "Filtro de Linha iClamper Energia 5 Tomadas (Substituto)"
+  },
+  {
+    "asin": "B08M9M7Y9W",
+    "title": "Adaptador Bluetooth 5.0 USB Dongle Receptor de Áudio"
+  },
+  {
+    "asin": "B07659S39C",
+    "title": "Suporte Articulado de Mesa F80N para Monitores de 17'' a 35'' ELG (Atualizado)"
+  },
+  {
+    "asin": "B0C6L7M2N3",
+    "title": "Fone de Ouvido Xiaomi Redmi Buds 4 Active Bluetooth 5.3"
+  },
+  {
+    "asin": "B08H7S8L7N",
+    "title": "Caixa de Som Portátil JBL Go 3 Bluetooth - Preta"
+  },
+  {
+    "asin": "B078GSVRLV",
+    "title": "Pilhas Alcalinas Duracell AA Pequena, Embalagem com 16 Unidades"
+  },
+  {
+    "asin": "B0CJ9V8H7R",
+    "title": "Fone de Ouvido Samsung Galaxy Buds FE Bluetooth - Grafite"
+  },
+  {
+    "asin": "B0B8PDL7D4",
+    "title": "Hub USB-C 5 em 1 Baseus (Substituto)"
+  },
+  {
+    "asin": "B0DQLLZP94",
+    "title": "Combo Teclado e Mouse Sem Fio Logitech MK270 com Conexão 2.4GHz"
+  },
+  {
+    "asin": "B0DT5LHPMX",
+    "title": "Xiaomi Redmi Note 14 5G 256GB 8GB RAM - Graphite Black"
+  },
+  {
+    "asin": "B0DRG2WQ7K",
+    "title": "Xiaomi Poco X7 Pro 5G 512GB 12GB RAM - Black"
+  },
+  {
+    "asin": "B0CDJ4L7CZ",
+    "title": "Sanduicheira e Minigrill Cadence Click SAN251 220V"
+  },
+  {
+    "asin": "B08DFCF9HW",
+    "title": "Liquidificador Oster Full OLIQ610 1400W 3,2L - Preto"
+  },
+  {
+    "asin": "B09XJL4B9H",
+    "title": "Jogo de Potes Herméticos de Vidro Electrolux - 12 Unidades"
+  },
+  {
+    "asin": "B0FNYHYV8V",
+    "title": "Balança Digital de Cozinha SF-400 Alta Precisão até 10kg"
+  },
+  {
+    "asin": "B0BZJDLT6Z",
+    "title": "Fritadeira Elétrica Air Fryer Mondial Oven 12L AFO-12L-BI - Preta"
+  },
+  {
+    "asin": "B0F256HPZJ",
+    "title": "Refil Filtro para Purificador de Água Electrolux Acqua Pure PAPPCA50"
+  },
+  {
+    "asin": "B08X66RQ48",
+    "title": "Purificador de Água Electrolux PE12G Gelada, Fria e Natural - Grafite"
+  },
+  {
+    "asin": "B0C6N9X7L7",
+    "title": "Forma de Silicone para Air Fryer Redonda Reutilizável"
+  },
+  {
+    "asin": "B0766L8G8X",
+    "title": "Jogo de Facas Tramontina Plenus com Lâminas em Aço Inox 9 Peças"
+  },
+  {
+    "asin": "B00A7Y6X8K",
+    "title": "Garrafa Térmica Termolar Magic Pump 1L - Preta"
+  },
+  {
+    "asin": "B005EPRF6G",
+    "title": "Moedor de Café Elétrico Hamilton Beach Automático"
+  },
+  {
+    "asin": "B0766K8K4H",
+    "title": "Jogo de Panelas Tramontina Turim em Alumínio com Revestimento Interno Antiaderente 7 Peças"
+  },
+  {
+    "asin": "B07P7S9X9G",
+    "title": "Batedeira Planetária Arno Deluxe Inox 600W - Preta"
+  },
+  {
+    "asin": "B07B9X7Y9Z",
+    "title": "Cafeteira Italiana Moka de Alumínio para 6 Xícaras de Café"
+  },
+  {
+    "asin": "B0C2R9DDPJ",
+    "title": "Limpador Cif Desengordurante Derrete Gordura Refil Econômico 450ml"
+  },
+  {
+    "asin": "B07DZ8VXQN",
+    "title": "Detergente em Pó para Máquina de Lavar Louça Finish Advanced 1kg"
+  },
+  {
+    "asin": "B07HZMBBBQ",
+    "title": "Lava Louças Líquido Ypê Neutro Galão 5L"
+  },
+  {
+    "asin": "B07FGYQCKM",
+    "title": "Líquido Secante Abrilhantador Finish para Máquina de Lavar Louça 250ml"
+  },
+  {
+    "asin": "B087XSL3VH",
+    "title": "Esponja Multiuso Esfrelux - Pack com 10 Unidades"
+  },
+  {
+    "asin": "B095ZN8T88",
+    "title": "Limpador Sanitário Harpic Cloro Forte 500ml"
+  },
+  {
+    "asin": "B07HZNJJCD",
+    "title": "Água Sanitária Ypê com Cloro Ativo Galão 5L"
+  },
+  {
+    "asin": "B0CSYPRC2Q",
+    "title": "Detergente em Pó para Máquina de Lavar Louças Ypê 1kg"
+  },
+  {
+    "asin": "B07DTNB6SY",
+    "title": "Limpador Cif Cremoso Multiuso 450ml - Original"
+  },
+  {
+    "asin": "B0BZWZ2385",
+    "title": "Detergente em Pó para Lava-Louças Finish Power Powder 700g"
+  },
+  {
+    "asin": "B07V7H5VHK",
+    "title": "Pano de Limpeza Reutilizável Scott Duramax - Rolo com 58 Folhas"
+  },
+  {
+    "asin": "B07FGYL6P7",
+    "title": "Aspirador de Pó Vertical WAP Silent Speed 1000W 2 em 1"
+  },
+  {
+    "asin": "B0779BRVVS",
+    "title": "Fita Dupla Face 3M Fixa Forte Fixação Extrema - 24mm x 2m"
+  },
+  {
+    "asin": "B0FWV14Q1W",
+    "title": "Jogo de Ferramentas Kit Chaves de Precisão 115 em 1 para Eletrônicos"
+  },
+  {
+    "asin": "B0FGBP8J85",
+    "title": "Mini Lanterna Tática LED Recarregável USB com Zoom"
+  },
+  {
+    "asin": "B09V1SM8QB",
+    "title": "Parafusadeira e Furadeira WAP BPF 12V Li-ion"
+  },
+  {
+    "asin": "B07CV2JXNH",
+    "title": "WD-40 Produto Multiuso Lubrificante Aerossol 300ml"
+  },
+  {
+    "asin": "B0FP9FF295",
+    "title": "Compressor de Ar Portátil Recarregável para Pneus e Bolas"
+  },
+  {
+    "asin": "B07DDQ6MKF",
+    "title": "Conjunto Placa para 1 Módulo Steck Stella 4x2 - Branco"
+  },
+  {
+    "asin": "B0F35GPLGV",
+    "title": "Batata Pringles Pack Promocional com 3 Sabores (Original, Creme e Cebola, Churrasco)"
+  },
+  {
+    "asin": "B097BYXGXN",
+    "title": "Ketchup Heinz Tradicional Frasco Pet 1,033kg"
+  },
+  {
+    "asin": "B0F2GMT6T3",
+    "title": "Barra de Proteína Integralmédica Whey Crisp Bar 12 Unidades - Chocolate"
+  },
+  {
+    "asin": "B07HDSL78H",
+    "title": "Café Orfeu Grãos Especial Clássico 1kg"
+  },
+  {
+    "asin": "B0CXV3LHQR",
+    "title": "Cerveja Spaten Puro Malte - Pack com 8 Latas de 350ml"
+  },
+  {
+    "asin": "B09WTLQ53R",
+    "title": "Ninho Fases 1 Composto Lácteo para Crianças de 1 a 3 anos - 800g"
+  },
+  {
+    "asin": "B07Y3RGS46",
+    "title": "Pasta de Amendoim Integral Fit Food 450g"
+  },
+  {
+    "asin": "B07FN8T31H",
+    "title": "Biscoito Caramelizado Lotus Biscoff 250g"
+  },
+  {
+    "asin": "B086F848JG",
+    "title": "Café 3 Corações Moído Regiões Microlote Mogiana Paulista 250g"
+  },
+  {
+    "asin": "B0FMLBQ136",
+    "title": "Creme Crocante KitKat Nestlé com Chocolate e Wafer - Balde 330g"
+  },
+  {
+    "asin": "B085D6F97D",
+    "title": "A Metamorfose - Franz Kafka (Edição Especial)"
+  },
+  {
+    "asin": "B08769Y8K8",
+    "title": "Café com Deus Pai 2026 - Júnior Rostirola"
+  },
+  {
+    "asin": "B09J5D1D5M",
+    "title": "Patinando no Amor - Lynn Painter"
+  },
+  {
+    "asin": "B07N8P9N2K",
+    "title": "A Empregada - Freida McFadden"
+  },
+  {
+    "asin": "B009M3M7Y9",
+    "title": "A Hora da Estrela - Clarice Lispector (Edição Comemorativa)"
+  },
+  {
+    "asin": "B08L7S8L7N",
+    "title": "Verity - Colleen Hoover"
+  },
+  {
+    "asin": "B07X8M8K5P",
+    "title": "Melhor do que nos Filmes - Lynn Painter"
+  },
+  {
+    "asin": "B0CSLPNYBG",
+    "title": "Stanley - Copo de cerveja isolado, copo empilhável Stay Chill de 473 ml, para bebidas quentes ou frias"
+  },
+  {
+    "asin": "B08LK15F8N",
+    "title": "Granado Sabonete Líquido Bebê, Tradicional, 500ml"
+  },
+  {
+    "asin": "B0D61T4KZ3",
+    "title": "ICHEF POLISHOP Panela Home Sauté Petit Shark Series Vermelha de 20cm"
+  }
 ]
