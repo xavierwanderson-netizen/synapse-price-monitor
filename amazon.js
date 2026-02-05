@@ -86,9 +86,21 @@ export async function fetchAmazonData(asin, fallbackTitle) {
       title,
       imageUrl,
       price,
+      errorStatus: null,
     };
   } catch (error) {
     const status = error?.response?.status;
+
+    if (status === 404) {
+      return {
+        asin,
+        url,
+        title: fallbackTitle || asin,
+        imageUrl: null,
+        price: null,
+        errorStatus: 404,
+      };
+    }
 
     if (status === 403 || status === 503) {
       try {
@@ -105,6 +117,7 @@ export async function fetchAmazonData(asin, fallbackTitle) {
           title,
           imageUrl,
           price,
+          errorStatus: null,
         };
       } catch (proxyError) {
         console.error(
@@ -121,6 +134,7 @@ export async function fetchAmazonData(asin, fallbackTitle) {
       title: fallbackTitle || asin,
       imageUrl: null,
       price: null,
+      errorStatus: status || null,
     };
   }
 }
