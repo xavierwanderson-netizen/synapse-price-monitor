@@ -1,294 +1,55 @@
 [
-  {
-    "asin": "B0BSVN58JW",
-    "title": "Pilha Alcalina Elgin AAA Palito, Pack com 16 Unidades"
-  },
-  {
-    "asin": "B008X6TB08",
-    "title": "Fone de Ouvido Philips TAUE101WT/00 com Microfone - Branco"
-  },
-  {
-    "asin": "B084S6N81P",
-    "title": "Fone de Ouvido Philips TAUE101BK/00 com Microfone - Preto"
-  },
-  {
-    "asin": "B075TGQVHT",
-    "title": "Fone de Ouvido Philips TAUE101WT/00 com Microfone - Branco"
-  },
-  {
-    "asin": "B0CQMT33WX",
-    "title": "Fire TV Stick HD | Streaming em Full HD com Controle Remoto por Voz com Alexa"
-  },
-  {
-    "asin": "B0CP6CVJSG",
-    "title": "Apple iPhone 15 (128 GB) — Preto"
-  },
-  {
-    "asin": "B09B8VGCR8",
-    "title": "Echo Dot (4ª Geração): Smart Speaker com Alexa - Cor Preta"
-  },
-  {
-    "asin": "B078GSWP44",
-    "title": "Pilhas Alcalinas Duracell AAA Palito, Embalagem com 16 Unidades"
-  },
-  {
-    "asin": "B0FPHYR6X8",
-    "title": "Smartphone Samsung Galaxy A07 128GB 4G Wi-Fi Tela 6.6\" Dual Chip"
-  },
-  {
-    "asin": "B0CVCLGV1W",
-    "title": "Smartwatch Samsung Galaxy Fit3, Bluetooth, Monitoramento de Sono - Grafite"
-  },
-  {
-    "asin": "B073JYVKNX",
-    "title": "Cartão de Memória SanDisk Ultra MicroSDXC 64GB UHS-I 100MB/s"
-  },
-  {
-    "asin": "B078N6M7P4",
-    "title": "Tesoura Escolar Tilibra Aqua 132mm"
-  },
-  {
-    "asin": "B08M9M7Y9W",
-    "title": "Babador de Silicone com Coletor"
-  },
-  {
-    "asin": "B07659S39C",
-    "title": "Kit Higiene Bebê Escova e Pente"
-  },
-  {
-    "asin": "B0CJ9V8H7R",
-    "title": "Fone de Ouvido Samsung Galaxy Buds FE Bluetooth - Grafite"
-  },
-  {
-    "asin": "B0B8PDL7D4",
-    "title": "Hub USB-C 5 em 1 Baseus (Substituto)"
-  },
-  {
-    "asin": "B0DQLLZP94",
-    "title": "Combo Teclado e Mouse Sem Fio Logitech MK270 com Conexão 2.4GHz"
-  },
-  {
-    "asin": "B0DT5LHPMX",
-    "title": "Xiaomi Redmi Note 14 5G 256GB 8GB RAM - Graphite Black"
-  },
-  {
-    "asin": "B0DRG2WQ7K",
-    "title": "Xiaomi Poco X7 Pro 5G 512GB 12GB RAM - Black"
-  },
-  {
-    "asin": "B0CDJ4L7CZ",
-    "title": "Sanduicheira e Minigrill Cadence Click SAN251 220V"
-  },
-  {
-    "asin": "B08DFCF9HW",
-    "title": "Liquidificador Oster Full OLIQ610 1400W 3,2L - Preto"
-  },
-  {
-    "asin": "B09XJL4B9H",
-    "title": "Toalha de Banho com Capuz para Bebê"
-  },
-  {
-    "asin": "B0FNYHYV8V",
-    "title": "Areia Sanitária para Gatos Viva Verde! Limpeza Completa 4kg"
-  },
-  {
-    "asin": "B0F35GPLGV",
-    "title": "Lenços Umedecidos Huggies 96 Un"
-  },
-  {
-    "asin": "B097BYXGXN",
-    "title": "Copo de Treinamento 360 Munchkin"
-  },
-  {
-    "asin": "B0F2GMT6T3",
-    "title": "Chupeta Ultra Air Avent 0-6 Meses"
-  },
-  {
-    "asin": "B07HDSL78H",
-    "title": "Mamadeira Pétala Avent 260ml"
-  },
-  {
-    "asin": "B0CXV3LHQR",
-    "title": "Aspirador Nasal de Sucção Lillo"
-  },
-  {
-    "asin": "B09WTLQ53R",
-    "title": "Termômetro Digital G-Tech Testa/Ouvido"
-  },
-  {
-    "asin": "B07Y3RGS46",
-    "title": "Almofada de Amamentação Boppy"
-  },
-  {
-    "asin": "B07FN8T31H",
-    "title": "Cadeira de Descanso Fisher-Price"
-  },
-  {
-    "asin": "B086F848JG",
-    "title": "Andador Infantil de Atividades Musical"
-  },
-  {
-    "asin": "B0FMLBQ136",
-    "title": "Cadeirinha de Carro Galzerano 9-36kg"
-  },
-  {
-    "asin": "B0BZJDLT6Z",
-    "title": "Fritadeira Elétrica Air Fryer Mondial Oven 12L AFO-12L-BI - Preta"
-  },
-  {
-    "asin": "B0F256HPZJ",
-    "title": "Refil Filtro para Purificador de Água Electrolux Acqua Pure PAPPCA50"
-  },
-  {
-    "asin": "B08X66RQ48",
-    "title": "Purificador de Água Electrolux PE12G Gelada, Fria e Natural - Grafite"
-  },
-  {
-    "asin": "B0C2R9DDPJ",
-    "title": "Pula Pirata Estrela Clássico"
-  },
-  {
-    "asin": "B07DZ8VXQN",
-    "title": "Jogo de Tabuleiro Banco Imobiliário Estrela"
-  },
-  {
-    "asin": "B07HZMBBBQ",
-    "title": "Massinha Play-Doh Conjunto de 4 Potes"
-  },
-  {
-    "asin": "B07FGYQCKM",
-    "title": "Boneco Luccas Neto com Som"
-  },
-  {
-    "asin": "B087XSL3VH",
-    "title": "Quebra-Cabeça 1000 Peças Paisagens"
-  },
-  {
-    "asin": "B095ZN8T88",
-    "title": "Lousa Mágica Digital LCD 8.5 Polegadas"
-  },
-  {
-    "asin": "B07HZNJJCD",
-    "title": "Kit de Pintura Infantil com Cavalete"
-  },
-  {
-    "asin": "B0CSYPRC2Q",
-    "title": "Piscina de Bolinhas com 100 Bolinhas"
-  },
-  {
-    "asin": "B07DTNB6SY",
-    "title": "Barraca Infantil Dobrável Toca com Túnel"
-  },
-  {
-    "asin": "B0BZWZ2385",
-    "title": "Tapete de Atividades Infantil Térmico"
-  },
-  {
-    "asin": "B07V7H5VHK",
-    "title": "Boneca Barbie Fashionista Sortida"
-  },
-  {
-    "asin": "B07FGYL6P7",
-    "title": "Pelúcia Stitch Disney Grande"
-  },
-  {
-    "asin": "B0779BRVVS",
-    "title": "Jogo Cara a Cara Estrela"
-  },
-  {
-    "asin": "B0FWV14Q1W",
-    "title": "Microfone Infantil com Pedestal e Som"
-  },
-  {
-    "asin": "B0FGBP8J85",
-    "title": "Kit Médico Infantil com Maleta"
-  },
-  {
-    "asin": "B09V1SM8QB",
-    "title": "Pomada Bepantol Baby 120g"
-  },
-  {
-    "asin": "B07CV2JXNH",
-    "title": "Mordedor Meu Controle Pais & Filhos"
-  },
-  {
-    "asin": "B0FP9FF295",
-    "title": "Sabonete Líquido Johnson's Baby 200ml"
-  },
-  {
-    "asin": "B07DDQ6MKF",
-    "title": "Fralda Pampers Ajuste Total G 80 Un"
-  },
-  {
-    "asin": "B0CSLPNYBG",
-    "title": "Stanley - Copo de cerveja isolado, copo empilhável Stay Chill de 473 ml, para bebidas quentes ou frias"
-  },
-  {
-    "asin": "B08LK15F8N",
-    "title": "Granado Sabonete Líquido Bebê, Tradicional, 500ml"
-  },
-  {
-    "asin": "B0D61T4KZ3",
-    "title": "ICHEF POLISHOP Panela Home Sauté Petit Shark Series Vermelha de 20cm"
-  },
-  { "asin": "B07PXG2X8B", "status": "active" },
-  { "asin": "B07WHSZ8P9", "status": "active" },
-  { "asin": "B0002H0A3S", "status": "active" },
-  { "asin": "B084DWCZY6", "status": "active" },
-  { "asin": "B07N8M9L0K", "status": "active" },
-  { "asin": "B082T4H6M8", "status": "active" },
-  { "asin": "B08L5M7N8P", "status": "active" },
-  { "asin": "B005CX4GLE", "status": "active" },
-  { "asin": "B084DWXW83", "status": "active" },
-  { "asin": "B08V7N6M5L", "status": "active" },
-  { "asin": "B07V39K2M9", "status": "active" },
-  { "asin": "B09K2M3N4P", "status": "active" },
-  { "asin": "B004Z97E8W", "status": "active" },
-  { "asin": "B09B8V1LZ3", "status": "active" },
-  { "asin": "B09K2M3N4L", "status": "active" },
-  { "asin": "B08N5N6N7N", "status": "active" },
-  { "asin": "B07V4N5M6P", "status": "active" },
-  { "asin": "B0017H4EBG", "status": "active" },
-  { "asin": "B08K9M6G7L", "status": "active" },
-  { "asin": "B07V4N5M6K", "status": "active" },
-  { "asin": "B09B2W1V8H", "status": "active" },
-  { "asin": "B08X9N0M1P", "status": "active" },
-  { "asin": "B0002E1O2W", "status": "active" },
-  { "asin": "B09G9N8M7L", "status": "active" },
-  { "asin": "B08X9N0M1K", "status": "active" },
-  { "asin": "B07K2M6G2Y", "status": "active" },
-  { "asin": "B07N2M3G4H", "status": "active" },
-  { "asin": "B0002F76XG", "status": "active" },
-  { "asin": "B07WDKL6V6", "status": "active" },
-  { "asin": "B07N2M3G4K", "status": "active" },
-  { "asin": "B08W9N7P2L", "status": "active" },
-  { "asin": "B09J8N7M6L", "status": "active" },
-  { "asin": "B0002H05M6", "status": "active" },
-  { "asin": "B08N5N6N7M", "status": "active" },
-  { "asin": "B09J8N7M6K", "status": "active" },
-  { "asin": "B09H1N2M3L", "status": "active" },
-  { "asin": "B08P5N4M3K", "status": "active" },
-  { "asin": "B003H8Z8L6", "status": "active" },
-  { "asin": "B09H1N2M3K", "status": "active" },
-  { "asin": "B08P5N4M3L", "status": "active" },
-  { "asin": "B07R4N5M6L", "status": "active" },
-  { "asin": "B07M6N5B4V", "status": "active" },
-  { "asin": "B001L8I7I2", "status": "active" },
-  { "asin": "B07R4N5M6K", "status": "active" },
-  { "asin": "B07M6N5B4K", "status": "active" },
-  { "asin": "B08V7N8M9L", "status": "active" },
-  { "asin": "B09G8N7M6K", "status": "active" },
-  { "asin": "B0002D0CAI", "status": "active" },
-  { "asin": "B08V7N8M9K", "status": "active" },
-  { "asin": "B09G8N7M6L", "status": "active" },
-  { "asin": "B0HLM27XSI", "status": "active" },
-  { "asin": "B0ETDB13SU", "status": "active" },
-  { "asin": "B0G8FWR0WG", "status": "active" },
-  { "asin": "B0UW13FT9Z", "status": "active" },
-  { "asin": "B06YBXYSCN", "status": "active" },
-  { "asin": "B0IE4W0U6F", "status": "active" },
-  { "asin": "B0GVRMT0KV", "status": "active" },
-  { "asin": "B0E3ZYMXRE", "status": "active" },
-  { "asin": "B02GVIIC8O", "status": "active" },
-  { "asin": "B0IAVBZA4C", "status": "active" }
+  { "asin": "B0BSVN58JW" },
+  { "asin": "B008X6TB08" },
+  { "asin": "B084S6N81P" },
+  { "asin": "B075TGQVHT" },
+  { "asin": "B0CQMT33WX" },
+  { "asin": "B0CP6CVJSG" },
+  { "asin": "B09B8VGCR8" },
+  { "asin": "B078GSWP44" },
+  { "asin": "B0FPHYR6X8" },
+  { "asin": "B0CVCLGV1W" },
+  { "asin": "B073JYVKNX" },
+  { "asin": "B0B8PDL7D4" },
+  { "asin": "B0DQLLZP94" },
+  { "asin": "B0DT5LHPMX" },
+  { "asin": "B0DRG2WQ7K" },
+  { "asin": "B0CDJ4L7CZ" },
+  { "asin": "B08DFCF9HW" },
+  { "asin": "B09XJL4B9H" },
+  { "asin": "B0FNYHYV8V" },
+  { "asin": "B0F35GPLGV" },
+  { "asin": "B097BYXGXN" },
+  { "asin": "B0F2GMT6T3" },
+  { "asin": "B07HDSL78H" },
+  { "asin": "B0CXV3LHQR" },
+  { "asin": "B09WTLQ53R" },
+  { "asin": "B07Y3RGS46" },
+  { "asin": "B07FN8T31H" },
+  { "asin": "B086F848JG" },
+  { "asin": "B0FMLBQ136" },
+  { "asin": "B0BZJDLT6Z" },
+  { "asin": "B0F256HPZJ" },
+  { "asin": "B08X66RQ48" },
+  { "asin": "B0C2R9DDPJ" },
+  { "asin": "B07DZ8VXQN" },
+  { "asin": "B07HZMBBBQ" },
+  { "asin": "B07FGYQCKM" },
+  { "asin": "B087XSL3VH" },
+  { "asin": "B095ZN8T88" },
+  { "asin": "B07HZNJJCD" },
+  { "asin": "B0CSYPRC2Q" },
+  { "asin": "B07DTNB6SY" },
+  { "asin": "B0BZWZ2385" },
+  { "asin": "B07V7H5VHK" },
+  { "asin": "B0779BRVVS" },
+  { "asin": "B0FWV14Q1W" },
+  { "asin": "B0FGBP8J85" },
+  { "asin": "B09V1SM8QB" },
+  { "asin": "B07CV2JXNH" },
+  { "asin": "B0FP9FF295" },
+  { "asin": "B07DDQ6MKF" },
+  { "asin": "B0CSLPNYBG" },
+  { "asin": "B08LK15F8N" },
+  { "asin": "B0D61T4KZ3" }
 ]
