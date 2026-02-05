@@ -17,6 +17,9 @@ console.log(`📦 Produtos carregados: ${products.length}`);
 
 const INTERVAL_MINUTES = Number(process.env.CHECK_INTERVAL_MINUTES || 30);
 const DROP_PERCENT = Number(process.env.PRICE_DROP_PERCENT || 5);
+const PRODUCT_DELAY_MS = Number(process.env.PRODUCT_DELAY_MS || 800);
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 cron.schedule(`*/${INTERVAL_MINUTES} * * * *`, async () => {
   console.log("⏱️ Verificando preços...");
@@ -29,6 +32,7 @@ cron.schedule(`*/${INTERVAL_MINUTES} * * * *`, async () => {
 
     if (!data.price) {
       console.log(`⚠️ Preço não encontrado para ${data.title} (${product.asin})`);
+      await sleep(PRODUCT_DELAY_MS);
       continue;
     }
 
@@ -43,6 +47,10 @@ cron.schedule(`*/${INTERVAL_MINUTES} * * * *`, async () => {
       );
 
       if (data.price < lastPrice && dropPercent >= DROP_PERCENT) {
+        console.log(
+          `🚨 Alerta: queda de ${dropPercent.toFixed(2)}% (limite ${DROP_PERCENT}%)`
+        );
+
         const message = [
           "🔥 PROMOÇÃO DETECTADA",
           "",
@@ -63,6 +71,7 @@ cron.schedule(`*/${INTERVAL_MINUTES} * * * *`, async () => {
     }
 
     setLastPrice(product.asin, data.price);
+    await sleep(PRODUCT_DELAY_MS);
   }
 });
 

@@ -23,6 +23,7 @@ Defina estas variáveis no Railway ou no seu `.env` local:
 - `AMAZON_PARTNER_TAG`
 - `CHECK_INTERVAL_MINUTES` (ex: `30`)
 - `PRICE_DROP_PERCENT` (ex: `5`)
+- `PRODUCT_DELAY_MS` (ex: `800`)
 - `TELEGRAM_BOT_TOKEN`
 - `TELEGRAM_CHAT_ID`
 
@@ -30,9 +31,10 @@ Defina estas variáveis no Railway ou no seu `.env` local:
 1. Lê os produtos de `products.json` (ASIN + título).
 2. Faz scraping da página da Amazon Brasil para obter preço real.
 3. Em caso de bloqueio (403/503), usa um fallback via `r.jina.ai` para buscar o HTML.
-4. Compara com o último preço salvo em memória.
-5. Se a queda for maior ou igual ao percentual configurado, envia alerta no Telegram (com imagem se disponível).
-6. Executa automaticamente a cada X minutos.
+4. Persiste o último preço em `.prices.json` para evitar perda em reinícios.
+5. Compara com o último preço salvo em memória.
+6. Se a queda for maior ou igual ao percentual configurado, envia alerta no Telegram (com imagem se disponível).
+7. Executa automaticamente a cada X minutos.
 
 ## 🧩 Estrutura dos arquivos
 - `index.js`: orquestrador com cron

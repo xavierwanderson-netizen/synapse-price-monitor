@@ -29,6 +29,17 @@ function parsePriceFromHtml(html) {
     }
   }
 
+  const wholeMatch = html.match(/a-price-whole">([\d.]+)/i);
+  const fractionMatch = html.match(/a-price-fraction">(\d{2})/i);
+  if (wholeMatch?.[1]) {
+    const whole = wholeMatch[1].replace(/\./g, "");
+    const fraction = fractionMatch?.[1] || "00";
+    const value = Number.parseFloat(`${whole}.${fraction}`);
+    if (Number.isFinite(value)) {
+      return value;
+    }
+  }
+
   return null;
 }
 
