@@ -24,12 +24,20 @@ const QUARANTINE_404_THRESHOLD = Number(process.env.QUARANTINE_404_THRESHOLD || 
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+function writeJsonAtomic(filePath, data) {
+  const tempPath = `${filePath}.tmp`;
+  fs.writeFileSync(tempPath, JSON.stringify(data, null, 2));
+  fs.renameSync(tempPath, filePath);
+}
+
 function normalizeProductsList(list) {
-  return list.map((item) => (typeof item === "string" ? { asin: item } : item));
+  return list
+    .map((item) => (typeof item === "string" ? { asin: item } : item))
+    .filter((item) => item?.asin);
 }
 
 function writeProducts(list) {
-  fs.writeFileSync(productsPath, JSON.stringify(list, null, 2));
+  writeJsonAtomic(productsPath, list);
 }
 
 function readQuarantine() {
@@ -46,7 +54,7 @@ function readQuarantine() {
 }
 
 function writeQuarantine(list) {
-  fs.writeFileSync(quarantinePath, JSON.stringify(list, null, 2));
+  writeJsonAtomic(quarantinePath, list);
 }
 
 function quarantineAsin(asin) {
@@ -55,11 +63,14 @@ function quarantineAsin(asin) {
   const quarantineList = readQuarantine();
   const date = new Date().toISOString().slice(0, 10);
 
-  quarantineList.push({
-    asin,
-    reason: "404_definitive",
-    date,
-  });
+  const alreadyQuarantined = quarantineList.some((item) => item.asin === asin);
+  if (!alreadyQuarantined) {
+    quarantineList.push({
+      asin,
+      reason: "404_definitive",
+      date,
+    });
+  }
 
   writeProducts(updatedProducts);
   writeQuarantine(quarantineList);
@@ -82,6 +93,12 @@ cron.schedule(`*/${INTERVAL_MINUTES} * * * *`, async () => {
     const lastPrice = getLastPrice(product.asin);
 
     const data = await fetchAmazonData(product.asin, fallbackTitle);
+
+    if (data.errorStatus && data.errorStatus !== 404) {
+      console.log(
+        `⚠️ Erro ${data.errorStatus} ao consultar ${product.asin}.`
+      );
+    }
 
     if (data.errorStatus === 404) {
       const failures = recordError(product.asin);
