@@ -21,7 +21,7 @@ async function main() {
   console.log("⏱️ Intervalo (min):", process.env.CHECK_INTERVAL_MINUTES || 30);
   console.log("🏷️ Partner tag:", process.env.AMAZON_PARTNER_TAG || "(vazio)");
 
-  // Telegram é opcional (roda mesmo sem), mas vamos avisar
+  // Telegram é opcional (roda mesmo sem), mas avisamos
   mustEnv("TELEGRAM_BOT_TOKEN");
   mustEnv("TELEGRAM_CHAT_ID");
 
