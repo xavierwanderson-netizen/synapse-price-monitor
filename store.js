@@ -1,85 +1,109 @@
 import fs from "fs";
 import path from "path";
+import { fileURLToPath } from "url";
 
-const DATA_DIR = "./.data";
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Persistência simples via arquivo JSON.
+// Em Railway, o filesystem é efêmero entre deploys, mas persiste durante a execução do container.
+// Isso é suficiente para manter histórico/lowest durante a vida do deploy.
+const DATA_DIR = path.join(__dirname, ".data");
 const STORE_FILE = path.join(DATA_DIR, "store.json");
 
-function ensureStoreFile() {
+function atomicWrite(filePath, obj) {
+  const tmp = `${filePath}.tmp`;
+  fs.writeFileSync(tmp, JSON.stringify(obj, null, 2), "utf-8");
+  fs.renameSync(tmp, filePath);
+}
+
+function ensureStore() {
   if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
   if (!fs.existsSync(STORE_FILE)) {
-    fs.writeFileSync(
-      STORE_FILE,
-      JSON.stringify(
-        {
-          lastPrices: {},
-          priceHistory: {},
-          alertState: {}
-        },
-        null,
-        2
-      ),
-      "utf-8"
-    );
+    atomicWrite(STORE_FILE, { lastPrice: {}, lowest: {}, alerts: {}, history: {} });
   }
 }
 
-function safeReadStore() {
-  ensureStoreFile();
+function readStoreSafe() {
+  ensureStore();
   try {
     const raw = fs.readFileSync(STORE_FILE, "utf-8");
+    if (!raw || !raw.trim()) throw new Error("store vazio");
     const data = JSON.parse(raw);
 
-    data.lastPrices = data.lastPrices || {};
-    data.priceHistory = data.priceHistory || {};
-    data.alertState = data.alertState || {};
+    // migração leve (caso existam chaves antigas)
+    if (!data.lastPrice && data.prices) data.lastPrice = data.prices;
+    if (!data.lowest) data.lowest = {};
+    if (!data.alerts) data.alerts = {};
+    if (!data.history) data.history = {};
     return data;
-  } catch {
-    ensureStoreFile();
-    return {
-      lastPrices: {},
-      priceHistory: {},
-      alertState: {}
-    };
+  } catch (e) {
+    // Backup do arquivo corrompido e recria limpo
+    try {
+      const broken = fs.readFileSync(STORE_FILE, "utf-8");
+      fs.writeFileSync(
+        path.join(DATA_DIR, `store.broken.${Date.now()}.json`),
+        broken,
+        "utf-8"
+      );
+    } catch {}
+    const fresh = { lastPrice: {}, lowest: {}, alerts: {}, history: {} };
+    atomicWrite(STORE_FILE, fresh);
+    return fresh;
   }
 }
 
-function safeWriteStore(data) {
-  ensureStoreFile();
-  const tmp = `${STORE_FILE}.tmp`;
-  fs.writeFileSync(tmp, JSON.stringify(data, null, 2), "utf-8");
-  fs.renameSync(tmp, STORE_FILE);
+function writeStore(store) {
+  atomicWrite(STORE_FILE, store);
 }
 
-export function addPriceHistory(asin, price, maxLen = 60) {
-  const store = safeReadStore();
-  store.priceHistory[asin] = store.priceHistory[asin] || [];
-  store.priceHistory[asin].push({ ts: Date.now(), price });
+export function getLastPrice(asin) {
+  const store = readStoreSafe();
+  return store.lastPrice[asin] ?? null;
+}
 
-  if (store.priceHistory[asin].length > maxLen) {
-    store.priceHistory[asin] = store.priceHistory[asin].slice(-maxLen);
-  }
-
-  safeWriteStore(store);
+export function setLastPrice(asin, price) {
+  const store = readStoreSafe();
+  store.lastPrice[asin] = price;
+  writeStore(store);
 }
 
 export function getLowestPrice(asin) {
-  const store = safeReadStore();
-  const history = store.priceHistory?.[asin];
-  if (!history || history.length === 0) return null;
+  const store = readStoreSafe();
+  return store.lowest[asin] ?? null;
+}
 
-  return Math.min(...history.map(h => h.price));
+export function setLowestPrice(asin, price) {
+  const store = readStoreSafe();
+  store.lowest[asin] = price;
+  writeStore(store);
+}
+
+export function addPriceHistory(asin, price, max = 30) {
+  const store = readStoreSafe();
+  if (!store.history[asin]) store.history[asin] = [];
+  store.history[asin].push({ price, ts: Date.now() });
+  store.history[asin] = store.history[asin].slice(-max);
+  writeStore(store);
+}
+
+export function getAveragePrice(asin) {
+  const store = readStoreSafe();
+  const list = store.history[asin];
+  if (!list || list.length < 3) return null;
+  const sum = list.reduce((acc, p) => acc + p.price, 0);
+  return sum / list.length;
 }
 
 export function canAlert(asin, cooldownHours = 12) {
-  const store = safeReadStore();
-  const lastAlert = store.alertState?.[asin]?.lastAlertTs;
-  if (!lastAlert) return true;
-
-  return Date.now() - lastAlert >= cooldownHours * 3600 * 1000;
+  const store = readStoreSafe();
+  const last = store.alerts[asin];
+  if (!last) return true;
+  return Date.now() - last >= cooldownHours * 60 * 60 * 1000;
 }
 
 export function markAlerted(asin) {
-  const store = safeReadStore();
-  store.alertState[asin] = { lastAlertTs: Date.now() };
-  safeWriteStore(store);
+  const store = readStoreSafe();
+  store.alerts[asin] = Date.now();
+  writeStore(store);
 }
