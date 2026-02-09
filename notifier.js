@@ -1,21 +1,22 @@
-import fetch from 'node-fetch';
+import { fetchAmazonProduct, buildAffiliateLink } from "./amazon.js";
+import {
+  getLastPrice,
+  setLastPrice,
+  getLowestPrice,
+  setLowestPrice,
+  addPriceHistory,
+  canAlert,
+  markAlerted
+} from "./store.js";
 
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID;
 
-/**
- * Regra de sanidade:
- * Bloqueia alertas com preço muito abaixo do histórico
- * (evita erro de parser virar alerta fake)
- */
 function isSuspiciousPrice(now, previousLowest) {
   if (!previousLowest) return false;
-  return now < previousLowest * 0.4; // abaixo de 40% do menor histórico
+  return now < previousLowest * 0.4;
 }
 
-/**
- * Monta mensagem comercial focada em conversão
- */
 function buildCommercialMessage({
   title,
   asin,
@@ -37,49 +38,71 @@ function buildCommercialMessage({
 📉 Economia: R$ ${economy} (${dropPercent.toFixed(1)}% OFF)
 
 ⚠️ Preço pode subir a qualquer momento.
-👉 Garanta agora com desconto:
+👉 Garanta agora:
 
 🔗 ${url}
 `.trim();
 }
 
-/**
- * Envia alerta ao Telegram
- */
-export async function sendAlert({
-  title,
-  asin,
-  now,
-  previousLowest,
-  dropPercent,
-  url
-}) {
-  // 🔒 Bloqueio de preço suspeito
-  if (isSuspiciousPrice(now, previousLowest)) {
-    console.log(
-      `⚠️ [${asin}] alerta bloqueado (preço suspeito: ${now} < 40% de ${previousLowest})`
-    );
-    return;
-  }
+async function sendAlert(data) {
+  if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_CHAT_ID) return;
 
-  const message = buildCommercialMessage({
-    title,
-    asin,
-    now,
-    previousLowest,
-    dropPercent,
-    url
-  });
+  const message = buildCommercialMessage(data);
 
   const telegramUrl = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`;
 
   await fetch(telegramUrl, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       chat_id: TELEGRAM_CHAT_ID,
       text: message,
       disable_web_page_preview: false
     })
   });
+}
+
+export async function runCheckOnce() {
+  const products = (await import("./products.json", { assert: { type: "json" } })).default;
+
+  for (const { asin } of products) {
+    try {
+      console.log(`🔍 Verificando ASIN ${asin}`);
+
+      const product = await fetchAmazonProduct(asin);
+      if (!product?.price) continue;
+
+      const now = product.price;
+      const last = getLastPrice(asin);
+      const lowest = getLowestPrice(asin);
+
+      addPriceHistory(asin, now);
+
+      if (!lowest || now < lowest) {
+        setLowestPrice(asin, now);
+      }
+
+      setLastPrice(asin, now);
+
+      if (lowest && now < lowest && canAlert(asin)) {
+        const dropPercent = ((lowest - now) / lowest) * 100;
+
+        if (!isSuspiciousPrice(now, lowest)) {
+          await sendAlert({
+            title: product.title,
+            asin,
+            now,
+            previousLowest: lowest,
+            dropPercent,
+            url: buildAffiliateLink(asin)
+          });
+
+          markAlerted(asin);
+        }
+      }
+
+    } catch (e) {
+      console.log(`❌ Erro no ASIN ${asin}:`, e?.message || e);
+    }
+  }
 }
