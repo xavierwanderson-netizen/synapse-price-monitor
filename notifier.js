@@ -1,3 +1,7 @@
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
+
 import { fetchAmazonProduct, buildAffiliateLink } from "./amazon.js";
 import {
   getLastPrice,
@@ -11,6 +15,16 @@ import {
 
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID;
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// ✅ Leitura segura do products.json
+function loadProducts() {
+  const filePath = path.join(__dirname, "products.json");
+  const raw = fs.readFileSync(filePath, "utf-8");
+  return JSON.parse(raw);
+}
 
 function isSuspiciousPrice(now, previousLowest) {
   if (!previousLowest) return false;
@@ -47,8 +61,6 @@ function buildCommercialMessage({
 async function sendAlert(data) {
   if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_CHAT_ID) return;
 
-  const message = buildCommercialMessage(data);
-
   const telegramUrl = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`;
 
   await fetch(telegramUrl, {
@@ -56,14 +68,14 @@ async function sendAlert(data) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       chat_id: TELEGRAM_CHAT_ID,
-      text: message,
+      text: buildCommercialMessage(data),
       disable_web_page_preview: false
     })
   });
 }
 
 export async function runCheckOnce() {
-  const products = (await import("./products.json", { assert: { type: "json" } })).default;
+  const products = loadProducts();
 
   for (const { asin } of products) {
     try {
