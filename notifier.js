@@ -16,14 +16,24 @@ import {
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID;
 
+// ⏱️ Delay base entre ASINs (ms)
+const REQUEST_DELAY_MS = Number(process.env.REQUEST_DELAY_MS || 1500);
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// ✅ Leitura segura do products.json
+// 📦 Leitura segura do products.json
 function loadProducts() {
   const filePath = path.join(__dirname, "products.json");
   const raw = fs.readFileSync(filePath, "utf-8");
   return JSON.parse(raw);
+}
+
+// 😴 Delay com jitter humano (anti-captcha)
+function sleepWithJitter(baseMs) {
+  const jitter = Math.floor(Math.random() * 500); // 0–500ms
+  const total = baseMs + jitter;
+  return new Promise((resolve) => setTimeout(resolve, total));
 }
 
 function isSuspiciousPrice(now, previousLowest) {
@@ -82,7 +92,11 @@ export async function runCheckOnce() {
       console.log(`🔍 Verificando ASIN ${asin}`);
 
       const product = await fetchAmazonProduct(asin);
-      if (!product?.price) continue;
+      if (!product || !product.price) {
+        // Delay mesmo quando falha (mantém padrão humano)
+        await sleepWithJitter(REQUEST_DELAY_MS);
+        continue;
+      }
 
       const now = product.price;
       const last = getLastPrice(asin);
@@ -116,5 +130,8 @@ export async function runCheckOnce() {
     } catch (e) {
       console.log(`❌ Erro no ASIN ${asin}:`, e?.message || e);
     }
+
+    // ⏱️ DELAY HUMANO ENTRE ASINs (ANTI-CAPTCHA)
+    await sleepWithJitter(REQUEST_DELAY_MS);
   }
 }
