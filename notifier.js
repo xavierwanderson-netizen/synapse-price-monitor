@@ -16,31 +16,45 @@ import {
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID;
 
-// ⏱️ Delay base entre ASINs (ms)
+// ⏱️ Delay humano entre ASINs (anti-captcha)
 const REQUEST_DELAY_MS = Number(process.env.REQUEST_DELAY_MS || 1500);
+
+// 🎯 Piso mínimo de desconto (%)
+const DISCOUNT_THRESHOLD_PERCENT = Number(
+  process.env.DISCOUNT_THRESHOLD_PERCENT || 12
+);
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// 📦 Leitura segura do products.json
+// 📦 Carrega produtos monitorados
 function loadProducts() {
   const filePath = path.join(__dirname, "products.json");
   const raw = fs.readFileSync(filePath, "utf-8");
   return JSON.parse(raw);
 }
 
-// 😴 Delay com jitter humano (anti-captcha)
+// 😴 Delay com jitter humano
 function sleepWithJitter(baseMs) {
   const jitter = Math.floor(Math.random() * 500); // 0–500ms
-  const total = baseMs + jitter;
-  return new Promise((resolve) => setTimeout(resolve, total));
+  return new Promise((resolve) => setTimeout(resolve, baseMs + jitter));
 }
 
+// 🔍 Detecta preço suspeito (proteção)
 function isSuspiciousPrice(now, previousLowest) {
   if (!previousLowest) return false;
   return now < previousLowest * 0.4;
 }
 
+// 💰 Economia mínima exigida por faixa de preço
+function minimumEconomyRequired(previousLowest) {
+  if (previousLowest <= 100) return 15;
+  if (previousLowest <= 300) return 30;
+  if (previousLowest <= 800) return 60;
+  return 100;
+}
+
+// 📝 Mensagem comercial
 function buildCommercialMessage({
   title,
   asin,
@@ -68,6 +82,7 @@ function buildCommercialMessage({
 `.trim();
 }
 
+// 📢 Envia alerta Telegram
 async function sendAlert(data) {
   if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_CHAT_ID) return;
 
@@ -84,6 +99,7 @@ async function sendAlert(data) {
   });
 }
 
+// 🔁 Ciclo principal
 export async function runCheckOnce() {
   const products = loadProducts();
 
@@ -93,13 +109,11 @@ export async function runCheckOnce() {
 
       const product = await fetchAmazonProduct(asin);
       if (!product || !product.price) {
-        // Delay mesmo quando falha (mantém padrão humano)
         await sleepWithJitter(REQUEST_DELAY_MS);
         continue;
       }
 
       const now = product.price;
-      const last = getLastPrice(asin);
       const lowest = getLowestPrice(asin);
 
       addPriceHistory(asin, now);
@@ -110,10 +124,23 @@ export async function runCheckOnce() {
 
       setLastPrice(asin, now);
 
+      // 🚦 Regras comerciais de alerta
       if (lowest && now < lowest && canAlert(asin)) {
         const dropPercent = ((lowest - now) / lowest) * 100;
+        const economy = lowest - now;
+        const minEconomy = minimumEconomyRequired(lowest);
 
-        if (!isSuspiciousPrice(now, lowest)) {
+        if (dropPercent < DISCOUNT_THRESHOLD_PERCENT) {
+          console.log(
+            `⏭️ Ignorado: desconto baixo (${dropPercent.toFixed(1)}%)`
+          );
+        } else if (economy < minEconomy) {
+          console.log(
+            `⏭️ Ignorado: economia baixa (R$ ${economy.toFixed(
+              2
+            )} < R$ ${minEconomy})`
+          );
+        } else if (!isSuspiciousPrice(now, lowest)) {
           await sendAlert({
             title: product.title,
             asin,
@@ -131,7 +158,7 @@ export async function runCheckOnce() {
       console.log(`❌ Erro no ASIN ${asin}:`, e?.message || e);
     }
 
-    // ⏱️ DELAY HUMANO ENTRE ASINs (ANTI-CAPTCHA)
+    // ⏱️ Delay humano entre ASINs
     await sleepWithJitter(REQUEST_DELAY_MS);
   }
 }
