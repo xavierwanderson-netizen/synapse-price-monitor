@@ -1,41 +1,35 @@
-import { createRequire } from 'module';
-const require = createRequire(import.meta.url);
-const amazonPaapi = require('amazon-paapi');
+import { DefaultApi } from 'creatorsapi-nodejs-sdk';
 
-const commonParameters = {
-  AccessKey: process.env.AMAZON_ACCESS_KEY,
-  SecretKey: process.env.AMAZON_SECRET_KEY,
-  PartnerTag: process.env.AMAZON_PARTNER_TAG,
-  Region: 'Brazil', 
-  PartnerType: 'Associates',
-};
-
-export function buildAffiliateLink(asin) {
-  return `https://www.amazon.com.br/dp/${asin}?tag=${process.env.AMAZON_PARTNER_TAG}`;
-}
+// Configuração com as NOVAS credenciais OAuth 2.0
+const apiInstance = new DefaultApi({
+  credentialId: process.env.AMAZON_CREDENTIAL_ID,
+  credentialSecret: process.env.AMAZON_CREDENTIAL_SECRET,
+  version: "2.1", // Versão para região NA/BR
+  marketplace: "www.amazon.com.br"
+});
 
 export async function fetchAmazonProduct(asin) {
-  const requestParameters = {
-    ItemIds: [asin],
-    ItemIdType: 'ASIN',
-    Resources: ['ItemInfo.Title', 'Offers.Listings.Price'],
+  const getItemsRequest = {
+    itemIds: [asin],
+    itemIdType: 'ASIN',
+    marketplace: 'www.amazon.com.br',
+    partnerTag: process.env.AMAZON_PARTNER_TAG,
+    resources: ['itemInfo.title'] // Note o lowerCamelCase obrigatório
   };
 
   try {
-    // RESOLUÇÃO DEFINITIVA: Chamada direta via bridge CommonJS
-    const data = await amazonPaapi.getItems(commonParameters, requestParameters);
-
-    if (data?.ItemsResult?.Items?.length > 0) {
-      const item = data.ItemsResult.Items[0];
+    const data = await apiInstance.getItems(getItemsRequest);
+    if (data?.itemsResult?.items?.length > 0) {
+      const item = data.itemsResult.items[0];
       return {
         asin,
-        title: item.ItemInfo?.Title?.DisplayValue || "Produto Amazon",
-        price: item.Offers?.Listings[0]?.Price?.Amount ? Number(item.Offers.Listings[0].Price.Amount) : null
+        title: item.itemInfo?.title?.displayValue || "Produto Amazon",
+        price: null // ALERTA: Creators API requer fluxo diferente para preços
       };
     }
-    return { asin, title: "Indisponível", price: null };
+    return null;
   } catch (error) {
-    console.error(`❌ Erro API Amazon (${asin}):`, error.message);
-    return { asin, title: "Erro", price: null };
+    console.error(`❌ Erro Creators API (${asin}):`, error.message);
+    return null;
   }
 }
