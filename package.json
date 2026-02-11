@@ -1,3 +1,4 @@
+{
 "dependencies": {
   "amazon-paapi": "^1.0.6",
   "axios": "^1.6.0",
