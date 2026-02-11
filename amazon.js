@@ -1,9 +1,7 @@
 import amazonPaapi from 'amazon-paapi';
 
-/**
- * Configuração da PA-API v5
- */
-const commonParameters = {
+// Configuração centralizada
+const config = {
   AccessKey: process.env.AMAZON_ACCESS_KEY,
   SecretKey: process.env.AMAZON_SECRET_KEY,
   PartnerTag: process.env.AMAZON_PARTNER_TAG,
@@ -34,15 +32,14 @@ export async function fetchAmazonProduct(asin) {
   };
 
   try {
-    // Ajuste na chamada para garantir compatibilidade com ESM
-    // Algumas versões exportam diretamente, outras dentro de .default ou como método
-    const api = amazonPaapi.getItems ? amazonPaapi : amazonPaapi.default;
+    // Garantindo a captura correta do método getItems
+    const common = amazonPaapi.getItems ? amazonPaapi : amazonPaapi.default;
     
-    if (!api || typeof api.getItems !== 'function') {
-        throw new Error("Não foi possível carregar a função getItems da biblioteca.");
+    if (!common) {
+      throw new Error("Falha crítica: Biblioteca amazon-paapi não carregada corretamente.");
     }
 
-    const data = await api.getItems(commonParameters, requestParameters);
+    const data = await common.getItems(config, requestParameters);
 
     if (data && data.ItemsResult && data.ItemsResult.Items.length > 0) {
       const item = data.ItemsResult.Items[0];
@@ -60,10 +57,11 @@ export async function fetchAmazonProduct(asin) {
     return { asin, title: "Produto não encontrado", price: null };
 
   } catch (error) {
-    if (error.status === 429) {
-      console.warn(`⚠️ Limite da PA-API atingido para o ASIN ${asin}.`);
+    // Tratamento de limite (Too Many Requests)
+    if (error.status === 429 || (error.message && error.message.includes('429'))) {
+      console.warn(`⚠️ Limite da PA-API atingido para o ASIN ${asin}. Aguardando próximo ciclo.`);
     } else {
-      console.error(`❌ Erro na PA-API para ASIN ${asin}:`, error.message);
+      console.error(`❌ Erro técnico PA-API ASIN ${asin}:`, error.message);
     }
     throw error;
   }
