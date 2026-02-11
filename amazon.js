@@ -1,26 +1,20 @@
 import amazonPaapi from 'amazon-paapi';
 
-// Configuração centralizada
-const config = {
+// Configuração extraída das suas variáveis de ambiente
+const commonParameters = {
   AccessKey: process.env.AMAZON_ACCESS_KEY,
   SecretKey: process.env.AMAZON_SECRET_KEY,
   PartnerTag: process.env.AMAZON_PARTNER_TAG,
-  Region: process.env.AMAZON_REGION || 'Brazil',
+  // A API oficial espera 'Brazil', mas aceita mapeamento da sua variável 'br'
+  Region: process.env.AMAZON_REGION === 'br' ? 'Brazil' : 'Brazil',
   PartnerType: 'Associates',
 };
 
-/**
- * Constrói o link de afiliado oficial
- */
 export function buildAffiliateLink(asin) {
   const tag = process.env.AMAZON_PARTNER_TAG;
-  const base = `https://www.amazon.com.br/dp/${asin}`;
-  return tag ? `${base}?tag=${encodeURIComponent(tag)}` : base;
+  return `https://www.amazon.com.br/dp/${asin}?tag=${tag}`;
 }
 
-/**
- * Obtém dados do produto via API oficial
- */
 export async function fetchAmazonProduct(asin) {
   const requestParameters = {
     ItemIds: [asin],
@@ -32,18 +26,17 @@ export async function fetchAmazonProduct(asin) {
   };
 
   try {
-    // Garantindo a captura correta do método getItems
-    const common = amazonPaapi.getItems ? amazonPaapi : amazonPaapi.default;
+    // RESOLUÇÃO DEFINITIVA DO ERRO DE IMPORTAÇÃO
+    const api = amazonPaapi.getItems ? amazonPaapi : amazonPaapi.default;
     
-    if (!common) {
-      throw new Error("Falha crítica: Biblioteca amazon-paapi não carregada corretamente.");
+    if (!api || typeof api.getItems !== 'function') {
+      throw new Error("Falha ao carregar getItems da biblioteca amazon-paapi.");
     }
 
-    const data = await common.getItems(config, requestParameters);
+    const data = await api.getItems(commonParameters, requestParameters);
 
     if (data && data.ItemsResult && data.ItemsResult.Items.length > 0) {
       const item = data.ItemsResult.Items[0];
-      
       const title = item.ItemInfo?.Title?.DisplayValue || "Produto Amazon";
       const price = item.Offers?.Listings[0]?.Price?.Amount || null;
 
@@ -54,14 +47,14 @@ export async function fetchAmazonProduct(asin) {
       };
     }
 
-    return { asin, title: "Produto não encontrado", price: null };
+    return { asin, title: "Indisponível", price: null };
 
   } catch (error) {
-    // Tratamento de limite (Too Many Requests)
-    if (error.status === 429 || (error.message && error.message.includes('429'))) {
-      console.warn(`⚠️ Limite da PA-API atingido para o ASIN ${asin}. Aguardando próximo ciclo.`);
+    // Tratamento de erro 429 (Too Many Requests)
+    if (error.status === 429) {
+      console.warn(`⚠️ PA-API: Limite de requisições atingido para ASIN ${asin}.`);
     } else {
-      console.error(`❌ Erro técnico PA-API ASIN ${asin}:`, error.message);
+      console.error(`❌ Erro técnico PA-API (${asin}):`, error.message);
     }
     throw error;
   }
