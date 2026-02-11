@@ -1,27 +1,27 @@
 import amazonPaapi from 'amazon-paapi';
 
 /**
- * Configuração da PA-API v5
- * Utiliza as variáveis que você já tem configuradas no Railway.
+ * Configuração da PA-API v5 utilizando as suas Service Variables do Railway
  */
 const commonParameters = {
   AccessKey: process.env.AMAZON_ACCESS_KEY,
   SecretKey: process.env.AMAZON_SECRET_KEY,
   PartnerTag: process.env.AMAZON_PARTNER_TAG,
-  Region: process.env.AMAZON_REGION || 'Brazil', 
+  Region: process.env.AMAZON_REGION || 'Brazil',
   PartnerType: 'Associates',
 };
 
 /**
- * Constrói o link de afiliado oficial usando sua Tag.
+ * Constrói o link de afiliado oficial
  */
 export function buildAffiliateLink(asin) {
   const tag = process.env.AMAZON_PARTNER_TAG;
-  return `https://www.amazon.com.br/dp/${asin}?tag=${tag}`;
+  const base = `https://www.amazon.com.br/dp/${asin}`;
+  return tag ? `${base}?tag=${encodeURIComponent(tag)}` : base;
 }
 
 /**
- * Busca dados do produto via API Oficial (Sem risco de CAPTCHA).
+ * Obtém dados do produto via API oficial da Amazon
  */
 export async function fetchAmazonProduct(asin) {
   const requestParameters = {
@@ -39,8 +39,7 @@ export async function fetchAmazonProduct(asin) {
     if (data && data.ItemsResult && data.ItemsResult.Items.length > 0) {
       const item = data.ItemsResult.Items[0];
       
-      const title = item.ItemInfo.Title.DisplayValue;
-      // O preço na API vem como um valor numérico direto
+      const title = item.ItemInfo?.Title?.DisplayValue || "Produto Amazon";
       const price = item.Offers?.Listings[0]?.Price?.Amount || null;
 
       return {
@@ -50,14 +49,14 @@ export async function fetchAmazonProduct(asin) {
       };
     }
 
-    return { asin, title: "Produto Indisponível", price: null };
+    return { asin, title: "Produto não encontrado", price: null };
 
   } catch (error) {
-    // Tratamento de erro específico para a API
     if (error.status === 429) {
-      throw new Error("PA-API_LIMIT_EXCEEDED");
+      console.warn(`⚠️ Limite da PA-API atingido para o ASIN ${asin}.`);
+    } else {
+      console.error(`❌ Erro na PA-API para ASIN ${asin}:`, error.message);
     }
-    console.error(`❌ Erro PA-API ASIN ${asin}:`, error.message);
     throw error;
   }
 }
