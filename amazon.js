@@ -6,7 +6,7 @@ const commonParameters = {
   AccessKey: process.env.AMAZON_ACCESS_KEY,
   SecretKey: process.env.AMAZON_SECRET_KEY,
   PartnerTag: process.env.AMAZON_PARTNER_TAG,
-  Region: 'Brazil', // Valor exato esperado pela API
+  Region: 'Brazil', 
   PartnerType: 'Associates',
 };
 
@@ -22,7 +22,7 @@ export async function fetchAmazonProduct(asin) {
   };
 
   try {
-    // Chamada direta agora que o require garantiu a função
+    // RESOLUÇÃO DEFINITIVA: Chamada direta via bridge CommonJS
     const data = await amazonPaapi.getItems(commonParameters, requestParameters);
 
     if (data?.ItemsResult?.Items?.length > 0) {
