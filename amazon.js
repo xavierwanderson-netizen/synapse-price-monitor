@@ -1,7 +1,7 @@
 import amazonPaapi from 'amazon-paapi';
 
 /**
- * Configuração da PA-API v5 utilizando as suas Service Variables do Railway
+ * Configuração da PA-API v5
  */
 const commonParameters = {
   AccessKey: process.env.AMAZON_ACCESS_KEY,
@@ -21,7 +21,7 @@ export function buildAffiliateLink(asin) {
 }
 
 /**
- * Obtém dados do produto via API oficial da Amazon
+ * Obtém dados do produto via API oficial
  */
 export async function fetchAmazonProduct(asin) {
   const requestParameters = {
@@ -34,7 +34,15 @@ export async function fetchAmazonProduct(asin) {
   };
 
   try {
-    const data = await amazonPaapi.getItems(commonParameters, requestParameters);
+    // Ajuste na chamada para garantir compatibilidade com ESM
+    // Algumas versões exportam diretamente, outras dentro de .default ou como método
+    const api = amazonPaapi.getItems ? amazonPaapi : amazonPaapi.default;
+    
+    if (!api || typeof api.getItems !== 'function') {
+        throw new Error("Não foi possível carregar a função getItems da biblioteca.");
+    }
+
+    const data = await api.getItems(commonParameters, requestParameters);
 
     if (data && data.ItemsResult && data.ItemsResult.Items.length > 0) {
       const item = data.ItemsResult.Items[0];
