@@ -1,10 +1,12 @@
-import amazonPaapi from 'amazon-paapi';
+import { createRequire } from 'module';
+const require = createRequire(import.meta.url);
+const amazonPaapi = require('amazon-paapi');
 
 const commonParameters = {
   AccessKey: process.env.AMAZON_ACCESS_KEY,
   SecretKey: process.env.AMAZON_SECRET_KEY,
   PartnerTag: process.env.AMAZON_PARTNER_TAG,
-  Region: 'Brazil', // Mantenha fixo para evitar erro de variável
+  Region: 'Brazil', // Valor exato esperado pela API
   PartnerType: 'Associates',
 };
 
@@ -20,9 +22,8 @@ export async function fetchAmazonProduct(asin) {
   };
 
   try {
-    // RESOLUÇÃO DE MÓDULO: Garante acesso à função getItems
-    const api = amazonPaapi.getItems ? amazonPaapi : (amazonPaapi.default || amazonPaapi);
-    const data = await api.getItems(commonParameters, requestParameters);
+    // Chamada direta agora que o require garantiu a função
+    const data = await amazonPaapi.getItems(commonParameters, requestParameters);
 
     if (data?.ItemsResult?.Items?.length > 0) {
       const item = data.ItemsResult.Items[0];
