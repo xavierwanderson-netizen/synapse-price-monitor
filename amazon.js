@@ -1,8 +1,6 @@
-import { createRequire } from 'module';
-const require = createRequire(import.meta.url);
-const amazonPaapi = require('amazon-paapi');
+import amazonPaapi from 'amazon-paapi';
 
-const config = {
+const commonParameters = {
   AccessKey: process.env.AMAZON_ACCESS_KEY,
   SecretKey: process.env.AMAZON_SECRET_KEY,
   PartnerTag: process.env.AMAZON_PARTNER_TAG,
@@ -12,8 +10,7 @@ const config = {
 
 export function buildAffiliateLink(asin) {
   const tag = process.env.AMAZON_PARTNER_TAG;
-  const base = `https://www.amazon.com.br/dp/${asin}`;
-  return tag ? `${base}?tag=${encodeURIComponent(tag)}` : base;
+  return `https://www.amazon.com.br/dp/${asin}?tag=${tag}`;
 }
 
 export async function fetchAmazonProduct(asin) {
@@ -24,29 +21,25 @@ export async function fetchAmazonProduct(asin) {
   };
 
   try {
-    // Agora chamamos a biblioteca de forma direta e segura
-    const data = await amazonPaapi.getItems(config, requestParameters);
+    // RESOLUÇÃO DEFINITIVA: Garante que o motor encontre a função da API
+    const api = amazonPaapi.getItems ? amazonPaapi : (amazonPaapi.default || amazonPaapi);
+    
+    if (typeof api.getItems !== 'function') {
+      throw new Error("A biblioteca PA-API não carregou corretamente.");
+    }
+
+    const data = await api.getItems(commonParameters, requestParameters);
 
     if (data && data.ItemsResult && data.ItemsResult.Items.length > 0) {
       const item = data.ItemsResult.Items[0];
       const title = item.ItemInfo?.Title?.DisplayValue || "Produto Amazon";
       const price = item.Offers?.Listings[0]?.Price?.Amount || null;
 
-      return {
-        asin,
-        title,
-        price: price ? Number(price) : null
-      };
+      return { asin, title, price: price ? Number(price) : null };
     }
-
     return { asin, title: "Indisponível", price: null };
-
   } catch (error) {
-    if (error.status === 429) {
-      console.warn(`⚠️ Limite atingido para ASIN ${asin}.`);
-    } else {
-      console.error(`❌ Erro técnico PA-API (${asin}):`, error.message);
-    }
+    console.error(`❌ Erro PA-API (${asin}):`, error.message);
     throw error;
   }
 }
