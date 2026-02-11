@@ -1,35 +1,49 @@
-import { DefaultApi } from 'creatorsapi-nodejs-sdk';
+import { createRequire } from 'module';
+const require = createRequire(import.meta.url);
+const creatorsApi = require('creatorsapi-nodejs-sdk');
 
-// Configuração com as NOVAS credenciais OAuth 2.0
-const apiInstance = new DefaultApi({
+const apiInstance = new creatorsApi.DefaultApi({
   credentialId: process.env.AMAZON_CREDENTIAL_ID,
   credentialSecret: process.env.AMAZON_CREDENTIAL_SECRET,
-  version: "2.1", // Versão para região NA/BR
+  version: "2.1",
   marketplace: "www.amazon.com.br"
 });
 
 export async function fetchAmazonProduct(asin) {
-  const getItemsRequest = {
+  const request = {
     itemIds: [asin],
-    itemIdType: 'ASIN',
-    marketplace: 'www.amazon.com.br',
     partnerTag: process.env.AMAZON_PARTNER_TAG,
-    resources: ['itemInfo.title'] // Note o lowerCamelCase obrigatório
+    marketplace: 'www.amazon.com.br',
+    currencyOfPreference: 'BRL',
+    resources: ['itemInfo.title', 'offersV2.listings.price']
   };
 
   try {
-    const data = await apiInstance.getItems(getItemsRequest);
-    if (data?.itemsResult?.items?.length > 0) {
-      const item = data.itemsResult.items[0];
+    const data = await apiInstance.getItems(request);
+    const item = data?.itemResults?.items?.[0];
+    
+    if (item) {
       return {
         asin,
-        title: item.itemInfo?.title?.displayValue || "Produto Amazon",
-        price: null // ALERTA: Creators API requer fluxo diferente para preços
+        title: item.itemInfo?.title?.displayValue,
+        price: item.offersV2?.listings?.[0]?.price?.money?.amount
       };
     }
     return null;
   } catch (error) {
-    console.error(`❌ Erro Creators API (${asin}):`, error.message);
+    // Tratamento de erros baseado na documentação oficial
+    const type = error.response?.data?.type;
+    const reason = error.response?.data?.reason;
+
+    if (type === "UnauthorizedException") {
+      console.error("🔑 Erro: Token expirado ou inválido. Verifique suas credenciais.");
+    } else if (reason === "AssociateNotEligible") {
+      console.error("🚫 Bloqueio: Sua conta não atingiu 10 vendas nos últimos 30 dias.");
+    } else if (type === "ThrottleException") {
+      console.error("⏳ Alerta: Limite de requisições excedido. Aguardando...");
+    } else {
+      console.error(`❌ Erro API (${asin}):`, error.message);
+    }
     return null;
   }
 }
