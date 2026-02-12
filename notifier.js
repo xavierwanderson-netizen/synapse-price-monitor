@@ -1,5 +1,6 @@
 import { fetchAmazonProduct, buildAffiliateLink } from "./amazon.js";
-import { fetchShopeeProduct } from "./shopee.js"; // Importa o novo motor que criamos
+import { fetchShopeeProduct } from "./shopee.js";
+import { fetchMLProduct } from "./mercadolivre.js"; // Novo motor do Mercado Livre
 import { getStore, updatePrice, isCooldownActive } from "./store.js";
 import axios from "axios";
 
@@ -28,7 +29,6 @@ async function checkPriceAndNotify(product, platform) {
   const store = await getStore();
   const lastPrice = store[id]?.lowestPrice;
 
-  // Se o preço não existir ou for zero, apenas salva e sai
   if (!price) return;
 
   if (!lastPrice) {
@@ -37,7 +37,6 @@ async function checkPriceAndNotify(product, platform) {
     return;
   }
 
-  // Calcula a queda de preço
   if (price < lastPrice) {
     const discountPercent = ((lastPrice - price) / lastPrice) * 100;
 
@@ -61,27 +60,28 @@ async function checkPriceAndNotify(product, platform) {
       await updatePrice(id, price);
     }
   } else if (price > lastPrice) {
-    // Se o preço subiu, apenas atualiza o registro sem alertar
     await updatePrice(id, price);
   }
 }
 
 export async function runCheckOnce(products) {
-  console.log(`🚀 Iniciando verificação de ${products.length} produtos...`);
+  console.log(`🚀 Iniciando verificação de ${products.length} produtos (Amazon, Shopee, ML)...`);
 
   for (const p of products) {
     try {
       let productData = null;
 
-      // Decide qual API usar baseada na plataforma
-      if (p.platform === 'shopee') {
+      // Decide qual motor usar baseado na plataforma definida no products.json
+      if (p.platform === 'mercadolivre') {
+        productData = await fetchMLProduct(p.mlId);
+      } else if (p.platform === 'shopee') {
         productData = await fetchShopeeProduct(p.itemId, p.shopId);
       } else {
+        // Padrão: Amazon
         productData = await fetchAmazonProduct(p.asin);
       }
 
       if (productData) {
-        // Usa o link oficial da API ou gera o link da Amazon
         const finalProduct = {
           ...productData,
           url: productData.url || (p.platform === 'amazon' ? buildAffiliateLink(p.asin) : "")
@@ -89,8 +89,8 @@ export async function runCheckOnce(products) {
         await checkPriceAndNotify(finalProduct, p.platform || 'amazon');
       }
 
-      // Delay para evitar bloqueios
-      await new Promise(resolve => setTimeout(resolve, REQUEST_DELAY));
+      // Delay para evitar bloqueios (jitter de 4.5s sugerido anteriormente)
+      await new Promise(resolve => setTimeout(resolve, REQUEST_DELAY + 1500));
     } catch (error) {
       console.error(`❌ Erro ao processar produto:`, error.message);
     }
