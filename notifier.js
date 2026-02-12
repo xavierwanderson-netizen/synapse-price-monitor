@@ -1,154 +1,99 @@
-import fs from "fs";
-import path from "path";
-import { fileURLToPath } from "url";
-
 import { fetchAmazonProduct, buildAffiliateLink } from "./amazon.js";
-import {
-  getLastPrice,
-  setLastPrice,
-  getLowestPrice,
-  setLowestPrice,
-  addPriceHistory,
-  canAlert,
-  markAlerted
-} from "./store.js";
+import { fetchShopeeProduct } from "./shopee.js"; // Importa o novo motor que criamos
+import { getStore, updatePrice, isCooldownActive } from "./store.js";
+import axios from "axios";
 
-const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
-const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID;
+const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
+const CHAT_ID = process.env.TELEGRAM_CHAT_ID;
+const DISCOUNT_THRESHOLD = parseFloat(process.env.DISCOUNT_THRESHOLD_PERCENT || "12");
+const REQUEST_DELAY = parseInt(process.env.REQUEST_DELAY_MS || "3000");
 
-const REQUEST_DELAY_MS = Number(process.env.REQUEST_DELAY_MS || 1500);
-const DISCOUNT_THRESHOLD_PERCENT = Number(
-  process.env.DISCOUNT_THRESHOLD_PERCENT || 12
-);
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-function loadProducts() {
-  const filePath = path.join(__dirname, "products.json");
-  return JSON.parse(fs.readFileSync(filePath, "utf-8"));
-}
-
-function sleepWithJitter(ms) {
-  return new Promise(r =>
-    setTimeout(r, ms + Math.floor(Math.random() * 500))
-  );
-}
-
-function isSuspiciousPrice(now, lowest) {
-  return lowest && now < lowest * 0.4;
-}
-
-function minimumEconomyRequired(lowest) {
-  if (lowest <= 100) return 15;
-  if (lowest <= 300) return 30;
-  if (lowest <= 800) return 60;
-  return 100;
-}
-
-// 🎯 CLASSIFICA INTENSIDADE
-function classifyIntensity(dropPercent) {
-  if (dropPercent >= 30) return "imperdivel";
-  if (dropPercent >= 20) return "otima";
-  return "boa";
-}
-
-// 📝 COPY DINÂMICA
-function buildMessage({ title, now, lowest, dropPercent, url }) {
-  const economy = (lowest - now).toFixed(2);
-  const intensity = classifyIntensity(dropPercent);
-
-  let header, subtitle, cta;
-
-  if (intensity === "imperdivel") {
-    header = "🚨🚨 OFERTA IMPERDÍVEL NA AMAZON 🚨🚨";
-    subtitle = "🔥 Preço mais baixo já registrado";
-    cta = "👉 Aproveite agora antes que acabe";
-  } else if (intensity === "otima") {
-    header = "🔥 ÓTIMA OFERTA NA AMAZON 🔥";
-    subtitle = "📉 Preço muito abaixo do normal";
-    cta = "👉 Vale muito a pena conferir";
-  } else {
-    header = "🔔 BOA OFERTA NA AMAZON 🔔";
-    subtitle = "💰 Economia real no preço";
-    cta = "👉 Veja os detalhes";
-  }
-
-  return `
-${header}
-
-🔥 ${title}
-${subtitle}
-
-💰 De: R$ ${lowest.toFixed(2)}
-💥 Por: R$ ${now.toFixed(2)}
-📉 Economia: R$ ${economy} (${dropPercent.toFixed(1)}% OFF)
-
-⚠️ Preço pode subir a qualquer momento.
-${cta}
-
-🔗 ${url}
-`.trim();
-}
-
-async function sendAlert(message) {
-  if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_CHAT_ID) return;
-
-  await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      chat_id: TELEGRAM_CHAT_ID,
-      text: message,
+// Função para enviar as mensagens para o Telegram
+async function sendTelegramMessage(text) {
+  try {
+    const url = `https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`;
+    await axios.post(url, {
+      chat_id: CHAT_ID,
+      text: text,
+      parse_mode: "HTML",
       disable_web_page_preview: false
-    })
-  });
+    });
+  } catch (error) {
+    console.error("❌ Erro ao enviar Telegram:", error.message);
+  }
 }
 
-export async function runCheckOnce() {
-  const products = loadProducts();
+async function checkPriceAndNotify(product, platform) {
+  const { id, title, price, url } = product;
+  const store = await getStore();
+  const lastPrice = store[id]?.lowestPrice;
 
-  for (const { asin } of products) {
-    try {
-      const product = await fetchAmazonProduct(asin);
-      if (!product?.price) {
-        await sleepWithJitter(REQUEST_DELAY_MS);
-        continue;
-      }
+  // Se o preço não existir ou for zero, apenas salva e sai
+  if (!price) return;
 
-      const now = product.price;
-      const lowest = getLowestPrice(asin);
-
-      addPriceHistory(asin, now);
-
-      if (!lowest || now < lowest) setLowestPrice(asin, now);
-      setLastPrice(asin, now);
-
-      if (lowest && now < lowest && canAlert(asin)) {
-        const dropPercent = ((lowest - now) / lowest) * 100;
-        const economy = lowest - now;
-
-        if (
-          dropPercent >= DISCOUNT_THRESHOLD_PERCENT &&
-          economy >= minimumEconomyRequired(lowest) &&
-          !isSuspiciousPrice(now, lowest)
-        ) {
-          await sendAlert(
-            buildMessage({
-              title: product.title,
-              now,
-              lowest,
-              dropPercent,
-              url: buildAffiliateLink(asin)
-            })
-          );
-          markAlerted(asin);
-        }
-      }
-    } catch (e) {
-      console.log(`❌ Erro ASIN ${asin}:`, e?.message || e);
-    }
-
-    await sleepWithJitter(REQUEST_DELAY_MS);
+  if (!lastPrice) {
+    console.log(`🆕 Novo produto registrado (${platform}): ${title} - R$ ${price}`);
+    await updatePrice(id, price);
+    return;
   }
+
+  // Calcula a queda de preço
+  if (price < lastPrice) {
+    const discountPercent = ((lastPrice - price) / lastPrice) * 100;
+
+    if (discountPercent >= DISCOUNT_THRESHOLD && !await isCooldownActive(id)) {
+      const message = `
+🔥 <b>PROMOÇÃO ENCONTRADA NA ${platform.toUpperCase()}!</b> 🔥
+
+📦 <b>${title}</b>
+
+💰 De: <s>R$ ${lastPrice.toFixed(2)}</s>
+✅ <b>Por: R$ ${price.toFixed(2)}</b>
+📉 <b>Queda de ${discountPercent.toFixed(0)}%</b>
+
+🛒 <b>Compre aqui:</b> ${url}
+      `;
+
+      await sendTelegramMessage(message);
+      await updatePrice(id, price);
+      console.log(`📢 Alerta enviado: ${title} (-${discountPercent.toFixed(0)}%)`);
+    } else {
+      await updatePrice(id, price);
+    }
+  } else if (price > lastPrice) {
+    // Se o preço subiu, apenas atualiza o registro sem alertar
+    await updatePrice(id, price);
+  }
+}
+
+export async function runCheckOnce(products) {
+  console.log(`🚀 Iniciando verificação de ${products.length} produtos...`);
+
+  for (const p of products) {
+    try {
+      let productData = null;
+
+      // Decide qual API usar baseada na plataforma
+      if (p.platform === 'shopee') {
+        productData = await fetchShopeeProduct(p.itemId, p.shopId);
+      } else {
+        productData = await fetchAmazonProduct(p.asin);
+      }
+
+      if (productData) {
+        // Usa o link oficial da API ou gera o link da Amazon
+        const finalProduct = {
+          ...productData,
+          url: productData.url || (p.platform === 'amazon' ? buildAffiliateLink(p.asin) : "")
+        };
+        await checkPriceAndNotify(finalProduct, p.platform || 'amazon');
+      }
+
+      // Delay para evitar bloqueios
+      await new Promise(resolve => setTimeout(resolve, REQUEST_DELAY));
+    } catch (error) {
+      console.error(`❌ Erro ao processar produto:`, error.message);
+    }
+  }
+  console.log("🏁 Verificação concluída.");
 }
