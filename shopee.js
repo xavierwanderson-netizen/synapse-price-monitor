@@ -5,20 +5,12 @@ const appId = process.env.SHOPEE_APP_ID;
 const appKey = process.env.SHOPEE_APP_KEY;
 const endpoint = "https://open-api.affiliate.shopee.com.br/graphql";
 
-function getShopeeAuth() {
-  const timestamp = Math.floor(Date.now() / 1000);
-  // Ordem oficial para assinaturas GraphQL Shopee
-  const baseStr = appId + timestamp + appKey; 
-  const signature = crypto.createHash('sha256').update(baseStr).digest('hex');
-  
-  return {
-    'Authorization': `SHA256 Credential=${appId}, Signature=${signature}, Timestamp=${timestamp}`,
-    'Content-Type': 'application/json'
-  };
-}
-
 export async function fetchShopeeProduct(itemId, shopId) {
-  // Query estruturada para ser aceita como string simples
+  const timestamp = Math.floor(Date.now() / 1000);
+  // A assinatura deve ser appId + timestamp + appKey sem espaços
+  const baseStr = `${appId}${timestamp}${appKey}`;
+  const signature = crypto.createHash('sha256').update(baseStr).digest('hex');
+
   const graphqlBody = {
     query: `query {
       productOfferV2(itemId: ${itemId}, shopId: ${shopId}) {
@@ -32,11 +24,13 @@ export async function fetchShopeeProduct(itemId, shopId) {
   };
 
   try {
-    const response = await axios.post(endpoint, graphqlBody, { 
-      headers: getShopeeAuth() 
+    const response = await axios.post(endpoint, graphqlBody, {
+      headers: {
+        'Authorization': `SHA256 Credential=${appId}, Signature=${signature}, Timestamp=${timestamp}`,
+        'Content-Type': 'application/json'
+      }
     });
 
-    // Se a API responder mas houver erro de permissão
     if (response.data.errors) {
       console.error(`❌ Erro Shopee (${itemId}):`, response.data.errors[0].message);
       return null;
