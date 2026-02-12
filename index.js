@@ -1,4 +1,5 @@
 import "dotenv/config";
+import fs from 'fs/promises';
 import { runCheckOnce } from "./notifier.js";
 
 function mustEnv(name) {
@@ -21,25 +22,28 @@ async function main() {
   console.log("⏱️ Intervalo (min):", process.env.CHECK_INTERVAL_MINUTES || 30);
   console.log("🏷️ Partner tag:", process.env.AMAZON_PARTNER_TAG || "(vazio)");
 
-  // Telegram é opcional
   mustEnv("TELEGRAM_BOT_TOKEN");
   mustEnv("TELEGRAM_CHAT_ID");
 
-  // Primeira execução
-  try {
-    await runCheckOnce();
-  } catch (e) {
-    console.log("❌ Erro na primeira execução:", e?.message || e);
+  // Função interna para carregar produtos e rodar a verificação
+  async function loadAndRun() {
+    try {
+      const data = await fs.readFile('./products.json', 'utf-8');
+      const products = JSON.parse(data);
+      // Agora passamos os produtos para o notifier
+      await runCheckOnce(products);
+    } catch (e) {
+      console.log("❌ Erro ao processar produtos:", e?.message || e);
+    }
   }
+
+  // Primeira execução
+  await loadAndRun();
 
   const intervalMs = getIntervalMs();
 
   setInterval(async () => {
-    try {
-      await runCheckOnce();
-    } catch (e) {
-      console.log("❌ Erro no loop:", e?.message || e);
-    }
+    await loadAndRun();
   }, intervalMs);
 }
 
