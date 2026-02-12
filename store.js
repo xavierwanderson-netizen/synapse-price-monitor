@@ -1,67 +1,44 @@
-import fs from "fs";
-import path from "path";
-import { fileURLToPath } from "url";
+import fs from 'fs/promises';
+import path from 'path';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+// O caminho onde o volume do Railway guarda os dados
+const DATA_PATH = process.env.VOLUME_PATH || '/.data';
+const STORE_FILE = path.join(DATA_PATH, 'store.json');
 
-const DATA_DIR = path.join(__dirname, ".data");
-const STORE_FILE = path.join(DATA_DIR, "store.json");
-
-function ensureStore() {
-  if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR);
-  if (!fs.existsSync(STORE_FILE)) {
-    fs.writeFileSync(
-      STORE_FILE,
-      JSON.stringify({ lastPrice: {}, lowest: {}, alerts: {}, history: {} }, null, 2)
-    );
+// Função que o notifier está procurando e não está achando
+export async function getStore() {
+  try {
+    const data = await fs.readFile(STORE_FILE, 'utf-8');
+    return JSON.parse(data);
+  } catch (error) {
+    return {}; // Se o arquivo não existir, retorna um banco de dados vazio
   }
 }
 
-function readStore() {
-  ensureStore();
-  return JSON.parse(fs.readFileSync(STORE_FILE));
+export async function updatePrice(id, price) {
+  const store = await getStore();
+  const now = Date.now();
+  
+  store[id] = {
+    lowestPrice: price,
+    lastUpdate: now
+  };
+
+  try {
+    await fs.mkdir(DATA_PATH, { recursive: true });
+    await fs.writeFile(STORE_FILE, JSON.stringify(store, null, 2));
+  } catch (error) {
+    console.error("❌ Erro ao salvar store.json:", error.message);
+  }
 }
 
-function writeStore(store) {
-  fs.writeFileSync(STORE_FILE, JSON.stringify(store, null, 2));
-}
+export async function isCooldownActive(id) {
+  const store = await getStore();
+  const lastUpdate = store[id]?.lastUpdate;
+  if (!lastUpdate) return false;
 
-export function getLastPrice(asin) {
-  return readStore().lastPrice[asin] ?? null;
-}
-
-export function setLastPrice(asin, price) {
-  const store = readStore();
-  store.lastPrice[asin] = price;
-  writeStore(store);
-}
-
-export function getLowestPrice(asin) {
-  return readStore().lowest[asin] ?? null;
-}
-
-export function setLowestPrice(asin, price) {
-  const store = readStore();
-  store.lowest[asin] = price;
-  writeStore(store);
-}
-
-export function addPriceHistory(asin, price, max = 30) {
-  const store = readStore();
-  store.history[asin] = store.history[asin] || [];
-  store.history[asin].push({ price, ts: Date.now() });
-  store.history[asin] = store.history[asin].slice(-max);
-  writeStore(store);
-}
-
-export function canAlert(asin, hours = 12) {
-  const last = readStore().alerts[asin];
-  return !last || Date.now() - last > hours * 3600000;
-}
-
-export function markAlerted(asin) {
-  const store = readStore();
-  store.alerts[asin] = Date.now();
-  writeStore(store);
+  const hoursSinceLastUpdate = (Date.now() - lastUpdate) / (1000 * 60 * 60);
+  const cooldownHours = parseInt(process.env.ALERT_COOLDOWN_HOURS || "12");
+  
+  return hoursSinceLastUpdate < cooldownHours;
 }
