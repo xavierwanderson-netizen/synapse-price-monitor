@@ -7,8 +7,8 @@ const endpoint = "https://open-api.affiliate.shopee.com.br/graphql";
 
 function getShopeeAuth() {
   const timestamp = Math.floor(Date.now() / 1000);
-  // A ordem correta de concatenação para a assinatura
-  const baseStr = appKey + timestamp + appId; 
+  // Ordem oficial para assinaturas GraphQL Shopee
+  const baseStr = appId + timestamp + appKey; 
   const signature = crypto.createHash('sha256').update(baseStr).digest('hex');
   
   return {
@@ -18,14 +18,13 @@ function getShopeeAuth() {
 }
 
 export async function fetchShopeeProduct(itemId, shopId) {
-  // Query formatada para evitar erros de sintaxe GraphQL
-  const graphqlQuery = {
+  // Query estruturada para ser aceita como string simples
+  const graphqlBody = {
     query: `query {
       productOfferV2(itemId: ${itemId}, shopId: ${shopId}) {
         nodes {
           productName
           priceMin
-          priceDiscountRate
           productLink
         }
       }
@@ -33,13 +32,13 @@ export async function fetchShopeeProduct(itemId, shopId) {
   };
 
   try {
-    const response = await axios.post(endpoint, graphqlQuery, { 
+    const response = await axios.post(endpoint, graphqlBody, { 
       headers: getShopeeAuth() 
     });
 
-    // Se a API retornar erro dentro do status 200
+    // Se a API responder mas houver erro de permissão
     if (response.data.errors) {
-      console.error(`❌ Erro interno Shopee (${itemId}):`, response.data.errors[0].message);
+      console.error(`❌ Erro Shopee (${itemId}):`, response.data.errors[0].message);
       return null;
     }
 
@@ -49,14 +48,13 @@ export async function fetchShopeeProduct(itemId, shopId) {
         id: itemId,
         title: product.productName,
         price: parseFloat(product.priceMin),
-        discount: product.priceDiscountRate,
         url: product.productLink,
         platform: 'shopee'
       };
     }
     return null;
   } catch (error) {
-    console.error(`❌ Erro de conexão Shopee (${itemId}):`, error.message);
+    console.error(`❌ Erro Conexão Shopee (${itemId}):`, error.message);
     return null;
   }
 }
