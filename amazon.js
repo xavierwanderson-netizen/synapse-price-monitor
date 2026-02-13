@@ -1,30 +1,24 @@
-import axios from 'axios';
-import * as cheerio from 'cheerio';
+import axios from "axios";
+import * as cheerio from "cheerio";
+
+export function buildAffiliateLink(asin) {
+  const tag = process.env.AMAZON_TAG || "";
+  return tag ? `https://www.amazon.com.br/dp/${asin}?tag=${tag}` : `https://www.amazon.com.br/dp/${asin}`;
+}
 
 export async function fetchAmazonProduct(asin) {
-  const url = `https://www.amazon.com.br/dp/${asin}?tag=${process.env.AMAZON_TAG}`;
+  const url = buildAffiliateLink(asin);
   try {
     const { data } = await axios.get(url, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-      },
-      timeout: 10000
+      headers: { "User-Agent": "Mozilla/5.0" },
+      timeout: 12000
     });
-
     const $ = cheerio.load(data);
-    const priceWhole = $('.a-price-whole').first().text().replace(/[^\d]/g, '');
-    const priceFraction = $('.a-price-fraction').first().text().replace(/[^\d]/g, '') || '00';
-    const title = $('#productTitle').text().trim();
-
-    if (priceWhole) {
-      return { 
-        id: asin, title, price: parseFloat(`${priceWhole}.${priceFraction}`), 
-        url, platform: 'amazon' 
-      };
-    }
-    return null;
+    const whole = $(".a-price-whole").first().text().replace(/[^\d]/g, "");
+    const fraction = $(".a-price-fraction").first().text().replace(/[^\d]/g, "") || "00";
+    if (!whole) return null;
+    return { id: asin, title: $("#productTitle").text().trim(), price: parseFloat(`${whole}.${fraction}`), url, platform: "amazon" };
   } catch (error) {
-    console.error(`❌ Erro Amazon (${asin}):`, error.message);
     return null;
   }
 }
