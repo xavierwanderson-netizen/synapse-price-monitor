@@ -17,6 +17,10 @@ async function saveTokens(tokens) {
 }
 
 async function refreshAccessToken(tokens) {
+  if (!tokens.refresh_token) {
+    throw new Error("Refresh token ausente");
+  }
+
   const { data } = await axios.post(
     "https://api.mercadolibre.com/oauth/token",
     {
@@ -44,50 +48,57 @@ export async function fetchMLProduct(mlId) {
   try {
     let tokens = await loadTokens();
 
-    if (!tokens.access_token || Date.now() >= (tokens.expires_at - 60000)) {
+    // tenta renovar apenas se tiver refresh token
+    if (
+      tokens.access_token &&
+      tokens.refresh_token &&
+      Date.now() >= (tokens.expires_at - 60000)
+    ) {
       tokens = await refreshAccessToken(tokens);
     }
 
-    try {
-      const { data } = await axios.get(
-        `https://api.mercadolibre.com/items/${mlId}`,
-        {
-          headers: { Authorization: `Bearer ${tokens.access_token}` },
-          timeout: 12000
-        }
-      );
+    let data;
 
-      const affiliateId = process.env.ML_AFFILIATE_ID;
-      const url = affiliateId
-        ? `${data.permalink}?matt_tool=${affiliateId}`
-        : data.permalink;
+    // tenta com autenticação
+    if (tokens.access_token) {
+      try {
+        const res = await axios.get(
+          `https://api.mercadolibre.com/items/${mlId}`,
+          {
+            headers: { Authorization: `Bearer ${tokens.access_token}` },
+            timeout: 12000
+          }
+        );
+        data = res.data;
+      } catch {
+        data = null;
+      }
+    }
 
-      return {
-        id: mlId,
-        title: data.title,
-        price: data.price,
-        platform: "mercadolivre",
-        url
-      };
-    } catch {
-      const { data: pubData } = await axios.get(
+    // fallback público (sem token)
+    if (!data) {
+      const res = await axios.get(
         `https://api.mercadolibre.com/items/${mlId}`,
         { timeout: 12000 }
       );
-
-      const affiliateId = process.env.ML_AFFILIATE_ID;
-      const url = affiliateId
-        ? `${pubData.permalink}?matt_tool=${affiliateId}`
-        : pubData.permalink;
-
-      return {
-        id: mlId,
-        title: pubData.title,
-        price: pubData.price,
-        platform: "mercadolivre",
-        url
-      };
+      data = res.data;
     }
+
+    if (!data || !data.price) return null;
+
+    const affiliateId = process.env.ML_AFFILIATE_ID;
+    const url = affiliateId
+      ? `${data.permalink}?matt_tool=${affiliateId}`
+      : data.permalink;
+
+    return {
+      id: `ml_${mlId}`,
+      title: data.title,
+      price: data.price,
+      platform: "mercadolivre",
+      url,
+      image: data.thumbnail || null
+    };
   } catch (error) {
     console.error(`❌ Erro ML (${mlId}):`, error.message);
     return null;
