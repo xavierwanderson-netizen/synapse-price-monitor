@@ -9,7 +9,9 @@ import {
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID;
 
-// Escapa caracteres HTML básicos para evitar erro 400 no Telegram
+// Lê o limite do Railway ou usa 12 como fallback padrão
+const DISCOUNT_THRESHOLD = parseInt(process.env.DISCOUNT_THRESHOLD_PERCENT || "12", 10);
+
 function escapeHtml(text) {
   if (!text) return "";
   return text
@@ -20,9 +22,10 @@ function escapeHtml(text) {
 
 function getOfferLevel(oldPrice, newPrice) {
   const discount = ((oldPrice - newPrice) / oldPrice) * 100;
+  
   if (discount >= 40) return { label: "💥 IMPERDÍVEL", discount };
   if (discount >= 25) return { label: "🚨 SUPER OFERTA", discount };
-  if (discount >= 10) return { label: "🔥 BOA OFERTA", discount };
+  if (discount >= DISCOUNT_THRESHOLD) return { label: "🔥 BOA OFERTA", discount };
   return { label: "📉 QUEDA DE PREÇO", discount };
 }
 
@@ -57,6 +60,14 @@ export async function notifyIfPriceDropped(product) {
   }
 
   if (product.price < lastPrice) {
+    const discountPercent = ((lastPrice - product.price) / lastPrice) * 100;
+
+    // Filtro dinâmico baseado na variável do Railway
+    if (discountPercent < DISCOUNT_THRESHOLD) {
+      await setLastPrice(product.id, product.price);
+      return; 
+    }
+
     const cooldown = await isCooldownActive(product.id);
     if (cooldown) return;
 
