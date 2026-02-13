@@ -3,21 +3,18 @@ import crypto from "crypto";
 
 export async function fetchShopeeProduct(itemId, shopId) {
   try {
-    const appId = String(process.env.SHOPEE_APP_ID || "").trim();
-    const appKey = String(process.env.SHOPEE_APP_KEY || "").trim();
-    if (!appId || !appKey) return null;
-
+    const appId = String(process.env.SHOPEE_APP_ID).trim();
+    const appKey = String(process.env.SHOPEE_APP_KEY).trim();
     const timestamp = Math.floor(Date.now() / 1000);
-    // A Shopee Creators API exige a assinatura da string: appId + timestamp + appKey
-    const baseStr = `${appId}${timestamp}${appKey}`;
+    
+    // Concatenação limpa para SHA256
+    const baseStr = appId + timestamp + appKey;
     const signature = crypto.createHash("sha256").update(baseStr).digest("hex");
 
-    // Query minificada (sem espaços extras/quebras de linha) para garantir integridade
-    const query = "query{productOfferV2(itemId:"+itemId+",shopId:"+shopId+"){nodes{productName,priceMin,productLink,imageUrl}}}";
+    const query = `query{productOfferV2(itemId:${itemId},shopId:${shopId}){nodes{productName,priceMin,productLink,imageUrl}}}`;
 
-    const { data } = await axios.post(
-      "https://open-api.affiliate.shopee.com.br/graphql",
-      { query },
+    const { data } = await axios.post("https://open-api.affiliate.shopee.com.br/graphql", 
+      { query }, 
       {
         headers: {
           "Authorization": `SHA256 Credential=${appId}, Signature=${signature}, Timestamp=${timestamp}`,
@@ -27,20 +24,17 @@ export async function fetchShopeeProduct(itemId, shopId) {
       }
     );
 
-    if (data.errors) {
-      console.error(`⚠️ Shopee API Error (${itemId}):`, data.errors[0].message);
-      return null;
-    }
+    if (data.errors) throw new Error(data.errors[0].message);
 
     const node = data?.data?.productOfferV2?.nodes?.[0];
-    if (!node || !node.priceMin) return null;
+    if (!node) return null;
 
     return {
       id: `shopee_${itemId}`,
-      title: node.productName || "Produto Shopee",
+      title: node.productName,
       price: parseFloat(node.priceMin),
       url: node.productLink,
-      image: node.imageUrl || null,
+      image: node.imageUrl,
       platform: "shopee"
     };
   } catch (error) {
