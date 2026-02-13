@@ -1,7 +1,13 @@
 import axios from "axios";
-import { getLastPrice, setLastPrice, isCooldownActive, markNotified } from "./store.js";
+import {
+  getLastPrice,
+  setLastPrice,
+  isCooldownActive,
+  markNotified
+} from "./store.js";
 
-const webhook = process.env.WHATSAPP_WEBHOOK_URL;
+const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
+const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID;
 
 // Função para classificar intensidade da oferta
 function getOfferLevel(oldPrice, newPrice) {
@@ -11,6 +17,27 @@ function getOfferLevel(oldPrice, newPrice) {
   if (discount >= 25) return { label: "🚨 SUPER OFERTA", discount };
   if (discount >= 10) return { label: "🔥 BOA OFERTA", discount };
   return { label: "📉 QUEDA DE PREÇO", discount };
+}
+
+async function sendTelegramText(text) {
+  const url = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`;
+
+  await axios.post(url, {
+    chat_id: TELEGRAM_CHAT_ID,
+    text,
+    disable_web_page_preview: false
+  });
+}
+
+async function sendTelegramPhoto(image, caption) {
+  const url = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendPhoto`;
+
+  await axios.post(url, {
+    chat_id: TELEGRAM_CHAT_ID,
+    photo: image,
+    caption,
+    parse_mode: "HTML"
+  });
 }
 
 export async function notifyIfPriceDropped(product) {
@@ -44,26 +71,20 @@ ${product.title}
 ${product.url}`;
 
     try {
-      // Se tiver imagem, tenta enviar com imagem
+      // tenta enviar com imagem
       if (product.image) {
-        await axios.post(webhook, {
-          image: product.image,
-          caption: textMessage
-        });
+        await sendTelegramPhoto(product.image, textMessage);
       } else {
-        // Envio padrão sem imagem
-        await axios.post(webhook, {
-          text: textMessage
-        });
+        await sendTelegramText(textMessage);
       }
 
       await markNotified(product.id);
     } catch (err) {
-      console.error("Erro ao enviar notificação com imagem, tentando fallback:", err.message);
+      console.error("Erro ao enviar com imagem, tentando fallback:", err.message);
 
-      // fallback para texto puro
+      // fallback para texto
       try {
-        await axios.post(webhook, { text: textMessage });
+        await sendTelegramText(textMessage);
         await markNotified(product.id);
       } catch (err2) {
         console.error("Erro no fallback de texto:", err2.message);
