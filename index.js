@@ -1,28 +1,43 @@
-import "dotenv/config";
-import fs from 'fs/promises';
-import { runCheckOnce } from "./notifier.js";
+import { fetchAmazonProduct } from './amazon.js';
+import { fetchMLProduct } from './mercadolivre.js';
+import { fetchShopeeProduct } from './shopee.js';
+import { getStore, updateStore } from './store.js';
+import { sendNotification } from './notifier.js';
+import fs from 'fs';
 
-async function main() {
-  console.log("🚀 Iniciando Price Monitor");
-  
-  // Função que lê os produtos e manda pro robô
-  async function loadAndRun() {
-    try {
-      const data = await fs.readFile('./products.json', 'utf-8');
-      const products = JSON.parse(data);
-      // Aqui está a correção: passamos a lista para o notifier
-      await runCheckOnce(products);
-    } catch (e) {
-      console.log("❌ Erro ao carregar produtos:", e?.message || e);
+async function checkPrices() {
+  console.log('🚀 Iniciando verificação de preços...');
+  const products = JSON.parse(fs.readFileSync('./products.json', 'utf-8'));
+  const store = getStore();
+
+  for (const product of products) {
+    let productData = null;
+
+    if (product.platform === 'amazon') {
+      productData = await fetchAmazonProduct(product.asin);
+    } else if (product.platform === 'mercadolivre') {
+      // Correção: usando mlId conforme definido no products.json
+      productData = await fetchMLProduct(product.mlId); 
+    } else if (product.platform === 'shopee') {
+      productData = await fetchShopeeProduct(product.itemId, product.shopId);
+    }
+
+    if (productData) {
+      const lastPrice = store[productData.id];
+      console.log(`🔍 [${productData.platform.toUpperCase()}] ${productData.title}: R$ ${productData.price}`);
+
+      if (lastPrice && productData.price < lastPrice) {
+        console.log(`🔥 PREÇO BAIXOU: ${productData.title}`);
+        await sendNotification(productData, lastPrice);
+      }
+      store[productData.id] = productData.price;
     }
   }
 
-  // Roda agora
-  await loadAndRun();
-
-  // Roda a cada X minutos (padrão 60)
-  const interval = (parseInt(process.env.CHECK_INTERVAL_MINUTES) || 60) * 60 * 1000;
-  setInterval(loadAndRun, interval);
+  updateStore(store);
+  console.log('✅ Verificação concluída.');
 }
 
-main().catch(console.error);
+// Executa a cada 30 minutos
+setInterval(checkPrices, 30 * 60 * 1000);
+checkPrices();
