@@ -2,6 +2,7 @@ import axios from "axios";
 import fs from "fs";
 
 const TOKENS_PATH = "/data/ml_tokens_v2.json";
+const COMMON_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
 
 async function loadTokens() {
   try {
@@ -47,39 +48,49 @@ export async function fetchMLProduct(mlId) {
 
   try {
     let tokens = await loadTokens();
+    let data = null;
 
-    // tenta renovar apenas se tiver refresh token
+    // 1. Gerenciamento de Token
     if (
       tokens.access_token &&
       tokens.refresh_token &&
       Date.now() >= (tokens.expires_at - 60000)
     ) {
-      tokens = await refreshAccessToken(tokens);
+      try {
+        tokens = await refreshAccessToken(tokens);
+      } catch (err) {
+        console.warn(`⚠️ Falha ao renovar token ML: ${err.message}`);
+      }
     }
 
-    let data;
-
-    // tenta com autenticação
+    // 2. Tentativa Autenticada
     if (tokens.access_token) {
       try {
         const res = await axios.get(
           `https://api.mercadolibre.com/items/${mlId}`,
           {
-            headers: { Authorization: `Bearer ${tokens.access_token}` },
-            timeout: 12000
+            headers: { 
+              Authorization: `Bearer ${tokens.access_token}`,
+              "User-Agent": COMMON_USER_AGENT
+            },
+            timeout: 10000
           }
         );
         data = res.data;
-      } catch {
-        data = null;
+      } catch (err) {
+        // Se for 403 ou 401, tentaremos o fallback abaixo
+        console.warn(`ℹ️ Tentativa autenticada falhou para ${mlId}, tentando fallback público...`);
       }
     }
 
-    // fallback público (sem token)
+    // 3. Fallback Público (Crucial para evitar 403 de datacenter)
     if (!data) {
       const res = await axios.get(
         `https://api.mercadolibre.com/items/${mlId}`,
-        { timeout: 12000 }
+        { 
+          headers: { "User-Agent": COMMON_USER_AGENT },
+          timeout: 10000 
+        }
       );
       data = res.data;
     }
