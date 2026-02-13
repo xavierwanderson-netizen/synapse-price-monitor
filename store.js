@@ -1,44 +1,52 @@
-import fs from 'fs/promises';
-import path from 'path';
+import fs from "fs/promises";
+import path from "path";
 
-// O caminho onde o volume do Railway guarda os dados
-const DATA_PATH = process.env.VOLUME_PATH || '/.data';
-const STORE_FILE = path.join(DATA_PATH, 'store.json');
+function resolveDataDir() {
+  return process.env.VOLUME_PATH || "/data";
+}
 
-// Função que o notifier está procurando e não está achando
+const DATA_DIR = resolveDataDir();
+const STORE_FILE = path.join(DATA_DIR, "store.json");
+
 export async function getStore() {
   try {
-    const data = await fs.readFile(STORE_FILE, 'utf-8');
-    return JSON.parse(data);
-  } catch (error) {
-    return {}; // Se o arquivo não existir, retorna um banco de dados vazio
+    const raw = await fs.readFile(STORE_FILE, "utf-8");
+    return JSON.parse(raw);
+  } catch {
+    return {};
   }
 }
 
-export async function updatePrice(id, price) {
-  const store = await getStore();
-  const now = Date.now();
-  
-  store[id] = {
-    lowestPrice: price,
-    lastUpdate: now
-  };
+async function writeStore(store) {
+  await fs.mkdir(DATA_DIR, { recursive: true });
+  await fs.writeFile(STORE_FILE, JSON.stringify(store, null, 2));
+}
 
-  try {
-    await fs.mkdir(DATA_PATH, { recursive: true });
-    await fs.writeFile(STORE_FILE, JSON.stringify(store, null, 2));
-  } catch (error) {
-    console.error("❌ Erro ao salvar store.json:", error.message);
-  }
+export async function getLastPrice(id) {
+  const store = await getStore();
+  return store[id]?.lastPrice ?? null;
+}
+
+export async function setLastPrice(id, price) {
+  const store = await getStore();
+  store[id] = store[id] || {};
+  store[id].lastPrice = price;
+  store[id].lastSeenAt = Date.now();
+  await writeStore(store);
+}
+
+export async function markNotified(id) {
+  const store = await getStore();
+  store[id] = store[id] || {};
+  store[id].lastNotifiedAt = Date.now();
+  await writeStore(store);
 }
 
 export async function isCooldownActive(id) {
   const store = await getStore();
-  const lastUpdate = store[id]?.lastUpdate;
-  if (!lastUpdate) return false;
-
-  const hoursSinceLastUpdate = (Date.now() - lastUpdate) / (1000 * 60 * 60);
-  const cooldownHours = parseInt(process.env.ALERT_COOLDOWN_HOURS || "12");
-  
-  return hoursSinceLastUpdate < cooldownHours;
+  const lastNotifiedAt = store[id]?.lastNotifiedAt;
+  if (!lastNotifiedAt) return false;
+  const cooldownHours = parseInt(process.env.ALERT_COOLDOWN_HOURS || "12", 10);
+  const hoursSince = (Date.now() - lastNotifiedAt) / (1000 * 60 * 60);
+  return hoursSince < cooldownHours;
 }
