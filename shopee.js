@@ -7,11 +7,14 @@ export async function fetchShopeeProduct(itemId, shopId) {
     const appKey = process.env.SHOPEE_APP_KEY;
 
     if (!appId || !appKey) {
-      console.error("Credenciais Shopee ausentes");
+      console.error("❌ Credenciais Shopee ausentes nas variáveis de ambiente");
       return null;
     }
 
     const timestamp = Math.floor(Date.now() / 1000);
+    
+    // O payload deve ser stringificado para a assinatura se houver body, 
+    // mas para esta query simples, a baseStr segue o padrão appId + timestamp + appKey
     const baseStr = appId + timestamp + appKey;
     const signature = crypto
       .createHash("sha256")
@@ -41,13 +44,22 @@ export async function fetchShopeeProduct(itemId, shopId) {
           Authorization: `SHA256 Credential=${appId}, Signature=${signature}, Timestamp=${timestamp}`,
           "Content-Type": "application/json"
         },
-        timeout: 12000
+        timeout: 15000
       }
     );
 
+    // Tratamento de erros retornados dentro do GraphQL
+    if (data.errors) {
+      console.error(`⚠️ Erro na Query Shopee (${itemId}):`, data.errors[0].message);
+      return null;
+    }
+
     const node = data?.data?.productOfferV2?.nodes?.[0];
 
-    if (!node || !node.priceMin) return null;
+    if (!node || !node.priceMin) {
+      console.warn(`ℹ️ Produto Shopee ${itemId} sem oferta ativa ou sem estoque.`);
+      return null;
+    }
 
     return {
       id: `shopee_${itemId}`,
@@ -59,7 +71,7 @@ export async function fetchShopeeProduct(itemId, shopId) {
     };
   } catch (error) {
     console.error(
-      `Erro Shopee (itemId=${itemId}, shopId=${shopId}):`,
+      `❌ Erro de conexão Shopee (itemId=${itemId}):`,
       error.message
     );
     return null;
