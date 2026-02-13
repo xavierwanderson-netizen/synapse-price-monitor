@@ -1,101 +1,36 @@
-import { fetchAmazonProduct, buildAffiliateLink } from "./amazon.js";
-import { fetchShopeeProduct } from "./shopee.js";
-import { fetchMLProduct } from "./mercadolivre.js"; 
-import { getStore, updatePrice, isCooldownActive } from "./store.js";
 import axios from "axios";
+import { getLastPrice, setLastPrice, isCooldownActive, markNotified } from "./store.js";
 
-const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
-const CHAT_ID = process.env.TELEGRAM_CHAT_ID;
-const DISCOUNT_THRESHOLD = parseFloat(process.env.DISCOUNT_THRESHOLD_PERCENT || "12");
-const REQUEST_DELAY = parseInt(process.env.REQUEST_DELAY_MS || "3000");
+const webhook = process.env.WHATSAPP_WEBHOOK_URL;
 
-// Função para enviar as mensagens para o Telegram
-async function sendTelegramMessage(text) {
-  try {
-    const url = `https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`;
-    await axios.post(url, {
-      chat_id: CHAT_ID,
-      text: text,
-      parse_mode: "HTML",
-      disable_web_page_preview: false
-    });
-  } catch (error) {
-    console.error("❌ Erro ao enviar Telegram:", error.message);
-  }
-}
+export async function notifyIfPriceDropped(product) {
+  if (!product || !product.id || !product.price) return;
 
-async function checkPriceAndNotify(product, platform) {
-  const { id, title, price, url } = product;
-  const store = await getStore();
-  
-  // No seu store.js o campo é 'lowestPrice'
-  const lastPrice = store[id]?.lowestPrice;
+  const lastPrice = await getLastPrice(product.id);
 
-  if (!price) return;
-
-  if (!lastPrice) {
-    console.log(`🆕 Novo produto registrado (${platform}): ${title} - R$ ${price}`);
-    await updatePrice(id, price);
+  // Primeira vez vendo o produto
+  if (lastPrice === null) {
+    await setLastPrice(product.id, product.price);
     return;
   }
 
-  if (price < lastPrice) {
-    const discountPercent = ((lastPrice - price) / lastPrice) * 100;
+  // Só notifica se caiu o preço
+  if (product.price < lastPrice) {
+    const cooldown = await isCooldownActive(product.id);
+    if (cooldown) return;
 
-    // MANTIDA SUA REGRA DE NEGÓCIO E MARKETING
-    if (discountPercent >= DISCOUNT_THRESHOLD && !await isCooldownActive(id)) {
-      const message = `
-🔥 <b>PROMOÇÃO ENCONTRADA NA ${platform.toUpperCase()}!</b> 🔥
+    const message = {
+      text: `🔥 OFERTA REAL 🔥\n${product.title}\n💰 R$ ${product.price.toFixed(2)}\n🔗 ${product.url}`
+    };
 
-📦 <b>${title}</b>
-
-💰 De: <s>R$ ${lastPrice.toFixed(2)}</s>
-✅ <b>Por: R$ ${price.toFixed(2)}</b>
-📉 <b>Queda de ${discountPercent.toFixed(0)}%</b>
-
-🛒 <b>Compre aqui:</b> ${url}
-      `;
-
-      await sendTelegramMessage(message);
-      await updatePrice(id, price);
-      console.log(`📢 Alerta enviado: ${title} (-${discountPercent.toFixed(0)}%)`);
-    } else {
-      await updatePrice(id, price);
-    }
-  } else if (price > lastPrice) {
-    // Se o preço subiu, atualizamos para não dar alerta falso quando cair de novo
-    await updatePrice(id, price);
-  }
-}
-
-export async function runCheckOnce(products) {
-  console.log(`🚀 Iniciando verificação de ${products.length} produtos (Amazon, Shopee, ML)...`);
-
-  for (const p of products) {
     try {
-      let productData = null;
-
-      // GARANTIA: Usa a chave correta para cada plataforma conforme o seu products.json
-      if (p.platform === 'mercadolivre') {
-        productData = await fetchMLProduct(p.mlId);
-      } else if (p.platform === 'shopee') {
-        productData = await fetchShopeeProduct(p.itemId, p.shopId);
-      } else {
-        productData = await fetchAmazonProduct(p.asin);
-      }
-
-      if (productData) {
-        const finalProduct = {
-          ...productData,
-          url: productData.url || (p.platform === 'amazon' ? buildAffiliateLink(p.asin) : "")
-        };
-        await checkPriceAndNotify(finalProduct, p.platform || 'amazon');
-      }
-
-      await new Promise(resolve => setTimeout(resolve, REQUEST_DELAY + 1500));
-    } catch (error) {
-      console.error(`❌ Erro ao processar produto:`, error.message);
+      await axios.post(webhook, message);
+      await markNotified(product.id);
+    } catch (err) {
+      console.error("Erro ao enviar notificação:", err.message);
     }
   }
-  console.log("🏁 Verificação concluída.");
+
+  // Atualiza preço salvo
+  await setLastPrice(product.id, product.price);
 }
