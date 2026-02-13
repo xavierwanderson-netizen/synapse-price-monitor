@@ -5,72 +5,92 @@ import { fetchMLProduct } from "./mercadolivre.js";
 import { fetchShopeeProduct } from "./shopee.js";
 import { notifyIfPriceDropped } from "./notifier.js";
 
+// Configurações via Variáveis de Ambiente
 const CHECK_INTERVAL_MINUTES = parseInt(process.env.CHECK_INTERVAL_MINUTES || "30", 10);
 const REQUEST_DELAY_MS = parseInt(process.env.REQUEST_DELAY_MS || "2500", 10);
 
+/**
+ * Utilitário para pausa entre requisições
+ */
 function sleep(ms) {
   return new Promise((r) => setTimeout(r, ms));
 }
 
+/**
+ * Carrega a lista de produtos do arquivo local
+ */
 function loadProducts() {
-  return JSON.parse(fs.readFileSync("./products.json", "utf-8"));
+  try {
+    return JSON.parse(fs.readFileSync("./products.json", "utf-8"));
+  } catch (error) {
+    console.error("❌ Erro ao ler products.json:", error.message);
+    return [];
+  }
 }
 
+/**
+ * Função principal de verificação
+ */
 async function checkOnce() {
   const products = loadProducts();
-  console.log(`🚀 Iniciando ciclo: ${products.length} produtos`);
+  if (products.length === 0) {
+    console.warn("⚠️ Nenhum produto encontrado para monitorar.");
+    return;
+  }
 
-  for (const product of products) {
+  console.log(`🚀 Iniciando ciclo: ${products.length} produtos em monitoramento`);
+
+  for (let i = 0; i < products.length; i++) {
+    const product = products[i];
     let productData = null;
+    
+    const progress = `[${i + 1}/${products.length}]`;
 
-    // AMAZON
-    if (product.platform === "amazon") {
-      try {
-        if (!product.asin) throw new Error("ASIN ausente");
+    // Lógica de Identificação por Plataforma
+    try {
+      if (product.platform === "amazon") {
+        if (!product.asin) throw new Error("Atributo 'asin' ausente no JSON");
         productData = await fetchAmazonProduct(product.asin);
-      } catch (e) {
-        console.error(`❌ Amazon falhou (asin=${product.asin}):`, e.message);
-      }
-    }
-
-    // MERCADO LIVRE
-    else if (product.platform === "mercadolivre") {
-      try {
-        if (!product.mlId) throw new Error("mlId ausente");
+      } 
+      else if (product.platform === "mercadolivre") {
+        if (!product.mlId) throw new Error("Atributo 'mlId' ausente no JSON");
         productData = await fetchMLProduct(product.mlId);
-      } catch (e) {
-        console.error(`❌ ML falhou (mlId=${product.mlId}):`, e.message);
-      }
-    }
-
-    // SHOPEE
-    else if (product.platform === "shopee") {
-      try {
+      } 
+      else if (product.platform === "shopee") {
         if (!product.itemId || !product.shopId) {
-          throw new Error("itemId ou shopId ausente");
+          throw new Error("Atributos 'itemId' ou 'shopId' ausentes no JSON");
         }
         productData = await fetchShopeeProduct(product.itemId, product.shopId);
-      } catch (e) {
-        console.error(
-          `❌ Shopee falhou (itemId=${product.itemId}, shopId=${product.shopId}):`,
-          e.message
-        );
+      } 
+      else {
+        console.warn(`${progress} ⚠️ Plataforma desconhecida:`, product.platform);
+        continue;
       }
-    } else {
-      console.warn("⚠️ Plataforma desconhecida:", product);
-      continue;
+
+      // Se capturou dados com sucesso, processa a notificação
+      if (productData) {
+        await notifyIfPriceDropped(productData);
+      } else {
+        console.warn(`${progress} ℹ️ Dados não obtidos para: ${product.asin || product.mlId || product.itemId}`);
+      }
+
+    } catch (e) {
+      console.error(`${progress} ❌ Falha crítica no processamento:`, e.message);
     }
 
-    if (productData) {
-      await notifyIfPriceDropped(productData);
-    }
-
+    // Delay entre produtos para evitar bloqueios de IP/API
     await sleep(REQUEST_DELAY_MS);
   }
 
-  console.log("✅ Ciclo finalizado");
+  console.log(`✅ Ciclo finalizado. Próxima verificação em ${CHECK_INTERVAL_MINUTES} minutos.`);
 }
 
-console.log("🟢 Monitor iniciado");
+// Inicialização do Monitor
+console.log("🟢 Bot de Monitoramento Iniciado");
+console.log(`⚙️ Intervalo: ${CHECK_INTERVAL_MINUTES}min | Delay: ${REQUEST_DELAY_MS}ms`);
+
+// Executa a primeira vez imediatamente
 checkOnce();
+
+// Agenda as próximas execuções
 setInterval(checkOnce, CHECK_INTERVAL_MINUTES * 60 * 1000);
