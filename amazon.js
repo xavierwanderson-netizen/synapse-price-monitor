@@ -13,13 +13,18 @@ export async function fetchAmazonProduct(asin) {
 
   try {
     const { data } = await axios.get(url, {
-      headers: { "User-Agent": "Mozilla/5.0" },
-      timeout: 12000
+      headers: { 
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
+        "Accept-Language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7",
+        "Accept-Encoding": "gzip, deflate, br",
+        "Device-Memory": "8"
+      },
+      timeout: 15000
     });
 
     const $ = cheerio.load(data);
 
-    // preço
+    // Seletores de Preço
     const whole = $(".a-price-whole")
       .first()
       .text()
@@ -31,20 +36,16 @@ export async function fetchAmazonProduct(asin) {
         .text()
         .replace(/[^\d]/g, "") || "00";
 
-    if (!whole) return null;
+    if (!whole) {
+      // Log discreto se não achar preço (pode ser block ou falta de estoque)
+      return null;
+    }
 
     const price = parseFloat(`${whole}.${fraction}`);
 
-    // título
+    // Título e Imagem
     const title = $("#productTitle").text().trim();
-
-    // imagem principal
-    let image = $("#landingImage").attr("src");
-
-    // fallback caso o seletor mude
-    if (!image) {
-      image = $("#imgTagWrapperId img").attr("src") || null;
-    }
+    let image = $("#landingImage").attr("src") || $("#imgTagWrapperId img").attr("src") || null;
 
     return {
       id: `amazon_${asin}`,
@@ -55,7 +56,11 @@ export async function fetchAmazonProduct(asin) {
       platform: "amazon"
     };
   } catch (error) {
-    console.error(`Erro Amazon (${asin}):`, error.message);
+    if (error.response?.status === 404) {
+      console.error(`🚫 Amazon: Produto ${asin} não encontrado.`);
+    } else {
+      console.error(`⚠️ Erro Amazon (${asin}):`, error.message);
+    }
     return null;
   }
 }
