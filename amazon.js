@@ -20,9 +20,10 @@ async function getAccessToken() {
 }
 
 export async function fetchAmazonProduct(asin) {
-  const marketplace = "www.amazon.com.br";
+  const marketplace = process.env.AMAZON_MARKETPLACE || "www.amazon.com.br";
   const partnerTag = process.env.AMAZON_PARTNER_TAG;
   const version = process.env.AMAZON_CREDENTIAL_VERSION || "2.1";
+  const timeout = parseInt(process.env.AMAZON_TIMEOUT_MS || "15000", 10);
 
   try {
     const token = await getAccessToken();
@@ -30,42 +31,53 @@ export async function fetchAmazonProduct(asin) {
       itemIds: [asin],
       marketplace: marketplace,
       partnerTag: partnerTag,
-      resources: ["itemInfo.title", "images.primary.small", "offersV2.listings.price"] // v2 conforme docs
+      resources: ["itemInfo.title", "images.primary.small", "offersV2.listings.price"]
     }, {
       headers: { "Authorization": `Bearer ${token}, Version ${version}`, "x-marketplace": marketplace, "Content-Type": "application/json" },
-      timeout: 10000
+      timeout: timeout
     });
 
-    const item = data?.itemsResult?.items?.[0]; // Estrutura corrigida conforme documentação
+    const item = data?.itemsResult?.items?.[0]; 
     if (item && item.offersV2?.listings?.[0]?.price) {
       return {
         id: `amazon_${asin}`,
         title: item.itemInfo.title.displayValue,
         price: parseFloat(item.offersV2.listings[0].price.amount),
-        url: `https://www.amazon.com.br/dp/${asin}?tag=${partnerTag}`,
+        url: `https://${marketplace}/dp/${asin}?tag=${partnerTag}`,
         image: item.images?.primary?.small?.url || null,
-        platform: "amazon"
+        platform: "amazon",
+        method: "api"
       };
     }
-    throw new Error("Item sem oferta na API");
+    throw new Error("API não retornou oferta");
   } catch (error) {
-    return await scrapeAmazon(asin);
+    // Se a API falhar (Erro 400/403), o Scraper assume
+    return await scrapeAmazon(asin, marketplace, partnerTag, timeout);
   }
 }
 
-async function scrapeAmazon(asin) {
-  const tag = process.env.AMAZON_PARTNER_TAG;
-  const url = `https://www.amazon.com.br/dp/${asin}?tag=${tag}`;
+async function scrapeAmazon(asin, marketplace, partnerTag, timeout) {
+  const url = `https://${marketplace}/dp/${asin}?tag=${partnerTag}`;
   const { data } = await axios.get(url, {
     headers: { 
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
-        "Accept-Language": "pt-BR,pt;q=0.9"
+      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
+      "Accept-Language": "pt-BR,pt;q=0.9"
     },
-    timeout: 15000
+    timeout: timeout
   });
   const $ = cheerio.load(data);
   const whole = $(".a-price-whole").first().text().replace(/[^\d]/g, "");
   const fraction = $(".a-price-fraction").first().text().replace(/[^\d]/g, "") || "00";
+  
   if (!whole) return null;
-  return { id: `amazon_${asin}`, title: $("#productTitle").text().trim(), price: parseFloat(`${whole}.${fraction}`), url, image: $("#landingImage").attr("src"), platform: "amazon" };
+
+  return { 
+    id: `amazon_${asin}`, 
+    title: $("#productTitle").text().trim() || "Produto Amazon", 
+    price: parseFloat(`${whole}.${fraction}`), 
+    url, 
+    image: $("#landingImage").attr("src") || null, 
+    platform: "amazon",
+    method: "scraper" 
+  };
 }
