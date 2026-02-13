@@ -16,8 +16,7 @@ async function checkPrices() {
     if (product.platform === 'amazon') {
       productData = await fetchAmazonProduct(product.asin);
     } else if (product.platform === 'mercadolivre') {
-      // CORREÇÃO: Usando mlId do products.json
-      productData = await fetchMLProduct(product.mlId); 
+      productData = await fetchMLProduct(product.mlId); // Corrigido para mlId
     } else if (product.platform === 'shopee') {
       productData = await fetchShopeeProduct(product.itemId, product.shopId);
     }
@@ -26,13 +25,10 @@ async function checkPrices() {
       const lastPrice = store[productData.id];
       console.log(`🔍 [${productData.platform.toUpperCase()}] ${productData.title}: R$ ${productData.price}`);
 
-      // Só notifica se o preço atual for MENOR que o anterior
       if (lastPrice && productData.price < lastPrice) {
-        console.log(`🔥 PREÇO BAIXOU: ${productData.title} (De R$ ${lastPrice} por R$ ${productData.price})`);
+        console.log(`🔥 PREÇO BAIXOU: ${productData.title}`);
         await sendNotification(productData, lastPrice);
       }
-      
-      // Atualiza o preço na memória para a próxima comparação
       store[productData.id] = productData.price;
     }
   }
