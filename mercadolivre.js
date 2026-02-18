@@ -5,10 +5,16 @@ const TOKENS_PATH = "/data/ml_tokens_v2.json";
 const AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36";
 
 async function saveTokens(tokens) {
-  fs.writeFileSync(TOKENS_PATH, JSON.stringify(tokens, null, 2));
+  try {
+    fs.writeFileSync(TOKENS_PATH, JSON.stringify(tokens, null, 2));
+    console.log("✅ ML: Tokens salvos com sucesso no volume persistente."); // Log de confirmação
+  } catch (err) {
+    console.error("❌ ML: Erro ao gravar no volume. Verifique o Mount Path no Railway:", err.message);
+  }
 }
 
 async function getFirstToken() {
+  console.log("🔄 ML: Tentando trocar o INITIAL_CODE pelo primeiro token...");
   const { data } = await axios.post("https://api.mercadolibre.com/oauth/token", {
     grant_type: "authorization_code",
     client_id: process.env.ML_CLIENT_ID,
@@ -16,6 +22,7 @@ async function getFirstToken() {
     code: process.env.ML_INITIAL_CODE,
     redirect_uri: process.env.ML_REDIRECT_URI
   });
+  
   const tokens = {
     access_token: data.access_token,
     refresh_token: data.refresh_token,
@@ -26,12 +33,14 @@ async function getFirstToken() {
 }
 
 async function refreshAccessToken(tokens) {
+  console.log("🔄 ML: Access Token expirado. Renovando com Refresh Token...");
   const { data } = await axios.post("https://api.mercadolibre.com/oauth/token", {
     grant_type: "refresh_token",
     client_id: process.env.ML_CLIENT_ID,
     client_secret: process.env.ML_CLIENT_SECRET,
     refresh_token: tokens.refresh_token
   });
+  
   const newTokens = {
     access_token: data.access_token,
     refresh_token: data.refresh_token || tokens.refresh_token,
@@ -44,6 +53,7 @@ async function refreshAccessToken(tokens) {
 export async function fetchMLProduct(mlId) {
   try {
     let tokens = {};
+    
     if (fs.existsSync(TOKENS_PATH)) {
       tokens = JSON.parse(fs.readFileSync(TOKENS_PATH, "utf-8"));
     } else if (process.env.ML_INITIAL_CODE) {
@@ -71,7 +81,13 @@ export async function fetchMLProduct(mlId) {
       image: res.data.thumbnail
     };
   } catch (error) {
-    console.error(`❌ Erro ML (${mlId}):`, error.response?.status || error.message);
+    const status = error.response?.status;
+    console.error(`❌ Erro ML (${mlId}):`, status || error.message);
+    
+    // Se o erro for 400, o código TG- provavelmente expirou ou o redirect_uri está divergente
+    if (status === 400) {
+      console.warn("⚠️ ML: Erro 400. Verifique se o REDIRECT_URI no Railway é IDÊNTICO ao do painel ML.");
+    }
     return null;
   }
 }
