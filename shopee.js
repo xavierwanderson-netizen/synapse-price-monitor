@@ -1,28 +1,27 @@
 import axios from "axios";
 import crypto from "crypto";
 
-// Função auxiliar para gerar a assinatura (evita repetição de código)
-function generateSignature(appId, appKey, timestamp) {
-  const baseStr = `${appId}${timestamp}${appKey}`;
+/**
+ * Função Auxiliar: Gera Assinatura SHA256 Exata
+ */
+function getSignature(appId, appKey, timestamp) {
+  // A documentação exige a ordem: appId + timestamp + appKey
+  const baseStr = appId + timestamp + appKey;
   return crypto.createHash("sha256").update(baseStr).digest("hex");
 }
 
 /**
- * MELHORIA: Gera link curto de afiliado (shope.ee)
- * Baseado na mutation generateShortLink da documentação v2
+ * MELHORIA: Encurtador de Links (shope.ee)
+ * Executado apenas após a captura bem-sucedida do preço.
  */
 export async function generateShopeeShortLink(originUrl) {
   try {
     const appId = String(process.env.SHOPEE_APP_ID || "").trim();
     const appKey = String(process.env.SHOPEE_APP_KEY || "").trim();
     const timestamp = Math.floor(Date.now() / 1000);
-    const signature = generateSignature(appId, appKey, timestamp);
+    const signature = getSignature(appId, appKey, timestamp);
 
-    const query = `mutation {
-      generateShortLink(input: { originUrl: "${originUrl}" }) {
-        shortLink
-      }
-    }`;
+    const query = `mutation{generateShortLink(input:{originUrl:"${originUrl}"}){shortLink}}`;
 
     const { data } = await axios.post(
       "https://open-api.affiliate.shopee.com.br/graphql",
@@ -38,13 +37,12 @@ export async function generateShopeeShortLink(originUrl) {
 
     return data?.data?.generateShortLink?.shortLink || originUrl;
   } catch (error) {
-    console.error("⚠️ Falha ao encurtar link Shopee:", error.message);
-    return originUrl; // Retorna o link original se o encurtador falhar
+    return originUrl; // Em caso de erro 10030 ou falha, retorna link longo
   }
 }
 
 /**
- * FUNÇÃO ORIGINAL (Mantida intacta para evitar erros anteriores)
+ * FUNÇÃO PRINCIPAL: Captura de Preço v2
  */
 export async function fetchShopeeProduct(itemId, shopId) {
   try {
@@ -54,15 +52,14 @@ export async function fetchShopeeProduct(itemId, shopId) {
     if (!appId || !appKey) return null;
 
     const timestamp = Math.floor(Date.now() / 1000);
-    const signature = generateSignature(appId, appKey, timestamp);
+    const signature = getSignature(appId, appKey, timestamp);
 
-    const payload = {
-      query: `query{productOfferV2(itemId:${itemId},shopId:${shopId}){nodes{productName,priceMin,productLink,imageUrl}}}`
-    };
+    // Query minificada para evitar erros de caractere invisível
+    const query = `query{productOfferV2(itemId:${itemId},shopId:${shopId}){nodes{productName,priceMin,productLink,imageUrl}}}`;
 
     const { data } = await axios.post(
       "https://open-api.affiliate.shopee.com.br/graphql",
-      payload,
+      { query },
       {
         headers: {
           "Authorization": `SHA256 Credential=${appId}, Signature=${signature}, Timestamp=${timestamp}`,
@@ -72,27 +69,29 @@ export async function fetchShopeeProduct(itemId, shopId) {
       }
     );
 
+    // Tratamento de Erros v2 (Identidade, Expiração ou Rate Limit)
     if (data.errors) {
-      console.error(`⚠️ Shopee API Error (${itemId}): ${data.errors[0].message}`);
+      const errCode = data.errors[0].extensions?.code || "10020";
+      console.error(`⚠️ Shopee API Error [${errCode}] (${itemId}): ${data.errors[0].message}`);
       return null;
     }
 
     const node = data?.data?.productOfferV2?.nodes?.[0];
     if (!node || !node.priceMin) return null;
 
-    // NOVIDADE: Tenta encurtar o link antes de retornar
-    const shortLink = await generateShopeeShortLink(node.productLink);
+    // Integração da melhoria: tenta encurtar o link original
+    const finalUrl = await generateShopeeShortLink(node.productLink);
 
     return {
       id: `shopee_${itemId}`,
       title: node.productName,
       price: parseFloat(node.priceMin),
-      url: shortLink, // Agora retorna o link shope.ee
+      url: finalUrl,
       image: node.imageUrl || null,
       platform: "shopee"
     };
   } catch (error) {
-    console.error(`❌ Erro Shopee (${itemId}): ${error.message}`);
+    console.error(`❌ Falha Crítica Shopee (${itemId}): ${error.message}`);
     return null;
   }
 }
