@@ -1,6 +1,7 @@
 import axios from "axios";
 import fs from "fs";
 
+// Define o caminho no volume persistente conforme sua configuração no Railway
 const TOKENS_PATH = "/.data/ml_tokens_v2.json"; 
 const AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36";
 
@@ -20,7 +21,7 @@ async function getTokens() {
   if (fs.existsSync(TOKENS_PATH)) {
     tokens = JSON.parse(fs.readFileSync(TOKENS_PATH, "utf-8"));
   } else if (process.env.ML_INITIAL_CODE) {
-    // Troca INITIAL_CODE usando Form-Data
+    console.log("🔄 ML: Trocando INITIAL_CODE pelo primeiro token...");
     const params = new URLSearchParams();
     params.append("grant_type", "authorization_code");
     params.append("client_id", process.env.ML_CLIENT_ID);
@@ -34,7 +35,7 @@ async function getTokens() {
   }
   
   if (tokens.access_token && Date.now() >= (tokens.expires_at - 60000)) {
-    // Renovação automática via Refresh Token
+    console.log("🔄 ML: Renovando Access Token...");
     const params = new URLSearchParams();
     params.append("grant_type", "refresh_token");
     params.append("client_id", process.env.ML_CLIENT_ID);
@@ -49,30 +50,36 @@ async function getTokens() {
 }
 
 /**
- * Busca produtos usando Multiget para até 20 IDs por vez
+ * ESSA É A FUNÇÃO QUE O SEU INDEX.JS PROCURA
  */
-export async function fetchMLProductsBatch(mlIds) {
+export async function fetchMLProduct(mlId) {
+  const cleanId = String(mlId).trim().toUpperCase();
   const tokens = await getTokens();
-  if (!tokens.access_token) return [];
+
+  if (!tokens.access_token) {
+    console.warn(`⚠️ ML: Pulando ${cleanId} - Token não disponível.`);
+    return null;
+  }
 
   try {
-    // Solicita apenas os campos necessários (attributes) para ganhar performance
-    const idsString = mlIds.join(',');
-    const res = await axios.get(`https://api.mercadolibre.com/items?ids=${idsString}&attributes=id,price,title,permalink,thumbnail`, {
-      headers: { "Authorization": `Bearer ${tokens.access_token}`, "User-Agent": AGENT }
+    const res = await axios.get(`https://api.mercadolibre.com/items/${cleanId}`, {
+      headers: { 
+        "Authorization": `Bearer ${tokens.access_token}`,
+        "User-Agent": AGENT 
+      },
+      timeout: 10000
     });
 
-    // Filtra apenas os que retornaram código 200
-    return res.data.filter(item => item.code === 200).map(item => ({
-      id: `ml_${item.body.id}`,
-      title: item.body.title,
-      price: item.body.price,
+    return {
+      id: `ml_${cleanId}`,
+      title: res.data.title,
+      price: res.data.price,
       platform: "mercadolivre",
-      url: `${item.body.permalink}?matt_tool=${process.env.ML_AFFILIATE_ID || ''}`,
-      image: item.body.thumbnail
-    }));
+      url: `${res.data.permalink}?matt_tool=${process.env.ML_AFFILIATE_ID || ''}`,
+      image: res.data.thumbnail
+    };
   } catch (error) {
-    console.error("❌ Erro no Batch ML:", error.response?.status || error.message);
-    return [];
+    console.error(`❌ Erro ML (${cleanId}):`, error.response?.status || error.message);
+    return null;
   }
 }
