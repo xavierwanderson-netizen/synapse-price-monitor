@@ -7,20 +7,25 @@ const AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHT
 async function saveTokens(tokens) {
   try {
     fs.writeFileSync(TOKENS_PATH, JSON.stringify(tokens, null, 2));
-    console.log("✅ ML: Tokens salvos com sucesso no volume persistente."); // Log de confirmação
+    console.log("✅ ML: Tokens salvos com sucesso no volume persistente.");
   } catch (err) {
-    console.error("❌ ML: Erro ao gravar no volume. Verifique o Mount Path no Railway:", err.message);
+    console.error("❌ ML: Erro ao gravar no volume:", err.message);
   }
 }
 
 async function getFirstToken() {
-  console.log("🔄 ML: Tentando trocar o INITIAL_CODE pelo primeiro token...");
-  const { data } = await axios.post("https://api.mercadolibre.com/oauth/token", {
-    grant_type: "authorization_code",
-    client_id: process.env.ML_CLIENT_ID,
-    client_secret: process.env.ML_CLIENT_SECRET,
-    code: process.env.ML_INITIAL_CODE,
-    redirect_uri: process.env.ML_REDIRECT_URI
+  console.log("🔄 ML: Trocando INITIAL_CODE pelo primeiro token...");
+  
+  // CORREÇÃO: Usando URLSearchParams para enviar como x-www-form-urlencoded
+  const params = new URLSearchParams();
+  params.append("grant_type", "authorization_code");
+  params.append("client_id", process.env.ML_CLIENT_ID);
+  params.append("client_secret", process.env.ML_CLIENT_SECRET);
+  params.append("code", process.env.ML_INITIAL_CODE);
+  params.append("redirect_uri", process.env.ML_REDIRECT_URI);
+
+  const { data } = await axios.post("https://api.mercadolibre.com/oauth/token", params, {
+    headers: { "Content-Type": "application/x-www-form-urlencoded" }
   });
   
   const tokens = {
@@ -33,12 +38,16 @@ async function getFirstToken() {
 }
 
 async function refreshAccessToken(tokens) {
-  console.log("🔄 ML: Access Token expirado. Renovando com Refresh Token...");
-  const { data } = await axios.post("https://api.mercadolibre.com/oauth/token", {
-    grant_type: "refresh_token",
-    client_id: process.env.ML_CLIENT_ID,
-    client_secret: process.env.ML_CLIENT_SECRET,
-    refresh_token: tokens.refresh_token
+  console.log("🔄 ML: Renovando Access Token com Refresh Token...");
+  
+  const params = new URLSearchParams();
+  params.append("grant_type", "refresh_token");
+  params.append("client_id", process.env.ML_CLIENT_ID);
+  params.append("client_secret", process.env.ML_CLIENT_SECRET);
+  params.append("refresh_token", tokens.refresh_token);
+
+  const { data } = await axios.post("https://api.mercadolibre.com/oauth/token", params, {
+    headers: { "Content-Type": "application/x-www-form-urlencoded" }
   });
   
   const newTokens = {
@@ -51,29 +60,32 @@ async function refreshAccessToken(tokens) {
 }
 
 export async function fetchMLProduct(mlId) {
+  // Limpeza sintática do ID conforme recomendado
+  const cleanId = String(mlId).trim().toUpperCase();
+
   try {
     let tokens = {};
-    
     if (fs.existsSync(TOKENS_PATH)) {
       tokens = JSON.parse(fs.readFileSync(TOKENS_PATH, "utf-8"));
     } else if (process.env.ML_INITIAL_CODE) {
       tokens = await getFirstToken();
     }
 
+    // Renovação automática
     if (tokens.access_token && Date.now() >= (tokens.expires_at - 60000)) {
       tokens = await refreshAccessToken(tokens);
     }
 
-    const res = await axios.get(`https://api.mercadolibre.com/items/${mlId}`, {
+    const res = await axios.get(`https://api.mercadolibre.com/items/${cleanId}`, {
       headers: { 
-        "Authorization": tokens.access_token ? `Bearer ${tokens.access_token}` : undefined,
+        "Authorization": `Bearer ${tokens.access_token}`,
         "User-Agent": AGENT 
       },
       timeout: 10000
     });
 
     return {
-      id: `ml_${mlId}`,
+      id: `ml_${cleanId}`,
       title: res.data.title,
       price: res.data.price,
       platform: "mercadolivre",
@@ -82,11 +94,10 @@ export async function fetchMLProduct(mlId) {
     };
   } catch (error) {
     const status = error.response?.status;
-    console.error(`❌ Erro ML (${mlId}):`, status || error.message);
+    console.error(`❌ Erro ML (${cleanId}):`, status || error.message);
     
-    // Se o erro for 400, o código TG- provavelmente expirou ou o redirect_uri está divergente
     if (status === 400) {
-      console.warn("⚠️ ML: Erro 400. Verifique se o REDIRECT_URI no Railway é IDÊNTICO ao do painel ML.");
+      console.warn("⚠️ ML: Erro 400. Verifique se REDIRECT_URI no Railway é IDÊNTICO ao do painel (ex: barra / no final).");
     }
     return null;
   }
