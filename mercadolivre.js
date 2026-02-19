@@ -1,22 +1,28 @@
 import axios from "axios";
 import fs from "fs";
 
-const TOKENS_PATH = "/data/ml_tokens_v2.json";
+// Ajustado para /.data para manter compatibilidade com seu volume atual
+const TOKENS_PATH = "/.data/ml_tokens_v2.json"; 
 const AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36";
 
 async function saveTokens(tokens) {
   try {
+    // Garante que a pasta oculta exista antes de gravar
+    const dir = "/.data";
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
     fs.writeFileSync(TOKENS_PATH, JSON.stringify(tokens, null, 2));
-    console.log("✅ ML: Tokens salvos com sucesso no volume persistente.");
+    console.log("✅ ML: Tokens salvos com sucesso no volume persistente /.data");
   } catch (err) {
-    console.error("❌ ML: Erro ao gravar no volume:", err.message);
+    console.error("❌ ML: Erro ao gravar no volume /.data:", err.message);
   }
 }
 
 async function getFirstToken() {
   console.log("🔄 ML: Trocando INITIAL_CODE pelo primeiro token...");
   
-  // CORREÇÃO: Usando URLSearchParams para enviar como x-www-form-urlencoded
+  // Envio obrigatório via Body x-www-form-urlencoded conforme documentação
   const params = new URLSearchParams();
   params.append("grant_type", "authorization_code");
   params.append("client_id", process.env.ML_CLIENT_ID);
@@ -52,7 +58,7 @@ async function refreshAccessToken(tokens) {
   
   const newTokens = {
     access_token: data.access_token,
-    refresh_token: data.refresh_token || tokens.refresh_token,
+    refresh_token: data.refresh_token || tokens.refresh_token, // Refresh token é de uso único
     expires_at: Date.now() + data.expires_in * 1000
   };
   await saveTokens(newTokens);
@@ -60,7 +66,7 @@ async function refreshAccessToken(tokens) {
 }
 
 export async function fetchMLProduct(mlId) {
-  // Limpeza sintática do ID conforme recomendado
+  // Limpeza sintática e Allow List (MLB + Números)
   const cleanId = String(mlId).trim().toUpperCase();
 
   try {
@@ -71,11 +77,12 @@ export async function fetchMLProduct(mlId) {
       tokens = await getFirstToken();
     }
 
-    // Renovação automática
+    // Renovação automática antes da expiração
     if (tokens.access_token && Date.now() >= (tokens.expires_at - 60000)) {
       tokens = await refreshAccessToken(tokens);
     }
 
+    // Header de autorização obrigatório em todas as chamadas
     const res = await axios.get(`https://api.mercadolibre.com/items/${cleanId}`, {
       headers: { 
         "Authorization": `Bearer ${tokens.access_token}`,
@@ -97,7 +104,7 @@ export async function fetchMLProduct(mlId) {
     console.error(`❌ Erro ML (${cleanId}):`, status || error.message);
     
     if (status === 400) {
-      console.warn("⚠️ ML: Erro 400. Verifique se REDIRECT_URI no Railway é IDÊNTICO ao do painel (ex: barra / no final).");
+      console.warn("⚠️ ML: Erro 400. Verifique se REDIRECT_URI no Railway possui https:// e coincide com o painel.");
     }
     return null;
   }
