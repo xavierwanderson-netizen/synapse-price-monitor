@@ -5,6 +5,20 @@ import { fetchMLProduct } from "./mercadolivre.js";
 import { fetchShopeeProduct } from "./shopee.js";
 import { notifyIfPriceDropped } from "./notifier.js";
 
+// ─── RESET TEMPORÁRIO DE TOKENS ML ───────────────────────────────────────────
+// Para usar: adicione RESET_ML_TOKENS=true nas variáveis do Railway e faça deploy.
+// Após ver "🗑️ Tokens ML deletados" nos logs, remova a variável e faça novo deploy.
+if (process.env.RESET_ML_TOKENS === "true") {
+  const mlTokensPath = "/.data/ml_tokens_v2.json";
+  if (fs.existsSync(mlTokensPath)) {
+    fs.unlinkSync(mlTokensPath);
+    console.log("🗑️ Tokens ML deletados. Próximo ciclo usará o ML_INITIAL_CODE.");
+  } else {
+    console.log("ℹ️ RESET_ML_TOKENS ativo, mas nenhum arquivo de token encontrado.");
+  }
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
 // Configurações via Variáveis de Ambiente
 const CHECK_INTERVAL_MINUTES = parseInt(process.env.CHECK_INTERVAL_MINUTES || "30", 10);
 const REQUEST_DELAY_MS = parseInt(process.env.REQUEST_DELAY_MS || "2500", 10);
@@ -26,11 +40,9 @@ function loadProducts() {
 async function checkOnce() {
   const products = loadProducts();
   if (products.length === 0) return;
-
   console.log(`🚀 Iniciando ciclo: ${products.length} produtos em monitoramento`);
-  
-  let consecutiveErrors = 0;
 
+  let consecutiveErrors = 0;
   for (let i = 0; i < products.length; i++) {
     const product = products[i];
     let productData = null;
@@ -41,18 +53,15 @@ async function checkOnce() {
       if (product.platform === "amazon") {
         if (!product.asin) throw new Error("asin ausente no JSON");
         productData = await fetchAmazonProduct(product.asin);
-      } 
-      else if (product.platform === "mercadolivre") {
+      } else if (product.platform === "mercadolivre") {
         if (!product.mlId) throw new Error("mlId ausente no JSON");
         productData = await fetchMLProduct(product.mlId);
-      } 
-      else if (product.platform === "shopee") {
+      } else if (product.platform === "shopee") {
         if (!product.itemId || !product.shopId) {
           throw new Error("itemId ou shopId ausentes no JSON");
         }
         productData = await fetchShopeeProduct(product.itemId, product.shopId);
-      } 
-      else {
+      } else {
         throw new Error(`Plataforma '${product.platform}' desconhecida`);
       }
 
@@ -63,14 +72,13 @@ async function checkOnce() {
       } else {
         throw new Error("API/Scraper não retornou dados válidos");
       }
-
     } catch (e) {
       consecutiveErrors++;
-      console.error(`${progress} ❌ Falha (${product.platform || 'Desconhecida'}): ${e.message}`);
+      console.error(`${progress} ❌ Falha (${product.platform || "Desconhecida"}): ${e.message}`);
     }
 
     // Cálculo de Delay Dinâmico com Backoff Exponencial
-    const dynamicDelay = REQUEST_DELAY_MS + (consecutiveErrors * BACKOFF_BASE);
+    const dynamicDelay = REQUEST_DELAY_MS + consecutiveErrors * BACKOFF_BASE;
     await sleep(dynamicDelay);
   }
 
