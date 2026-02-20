@@ -20,13 +20,18 @@ function escapeHtml(text) {
     .replace(/>/g, "&gt;");
 }
 
+// Formata números para o padrão de moeda brasileira R$ 1.234,56
+function formatCurrency(value) {
+  return value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
 function getOfferLevel(oldPrice, newPrice) {
   const discount = ((oldPrice - newPrice) / oldPrice) * 100;
   
-  if (discount >= 40) return { label: "💥 IMPERDÍVEL", discount };
-  if (discount >= 25) return { label: "🚨 SUPER OFERTA", discount };
-  if (discount >= DISCOUNT_THRESHOLD) return { label: "🔥 BOA OFERTA", discount };
-  return { label: "📉 QUEDA DE PREÇO", discount };
+  if (discount >= 40) return { label: "💥 PREÇO EXPLODIU (IMPERDÍVEL)", icon: "🧨", discount };
+  if (discount >= 25) return { label: "🚨 SUPER OFERTA DETECTADA", icon: "⭐", discount };
+  if (discount >= DISCOUNT_THRESHOLD) return { label: "🔥 BOA OFERTA", icon: "✅", discount };
+  return { label: "📉 QUEDA DE PREÇO", icon: "🏷️", discount };
 }
 
 async function sendTelegramPhoto(image, caption) {
@@ -71,18 +76,26 @@ export async function notifyIfPriceDropped(product) {
     const cooldown = await isCooldownActive(product.id);
     if (cooldown) return;
 
-    const { label, discount } = getOfferLevel(lastPrice, product.price);
+    const { label, icon, discount } = getOfferLevel(lastPrice, product.price);
     const savings = lastPrice - product.price;
 
-    const textMessage =
-`<b>${label}</b>
-${escapeHtml(product.title)}
+    // Mensagem aprimorada com melhor espaçamento e visual
+    const textMessage = 
+`${icon} <b>${label}</b> ${icon}
+━━━━━━━━━━━━━━━━━━
+📦 <b>${escapeHtml(product.title)}</b>
 
-💰 De: <s>R$ ${lastPrice.toFixed(2)}</s>
-🔥 Por: <b>R$ ${product.price.toFixed(2)}</b>
-💸 Economia: R$ ${savings.toFixed(2)} (${discount.toFixed(0)}% OFF)
+❌ De: <s>R$ ${formatCurrency(lastPrice)}</s>
+✅ Por: <b>R$ ${formatCurrency(product.price)}</b>
 
-🛒 <a href="${product.url}">Comprar agora na ${product.platform.toUpperCase()}</a>`;
+💰 <b>Economia de: R$ ${formatCurrency(savings)}</b>
+📉 Desconto: <b>${discount.toFixed(0)}% OFF</b>
+🏷️ Loja: <code>${product.platform.toUpperCase()}</code>
+
+🚀 <b>APROVEITE AGORA:</b>
+👇 👇 👇 👇 👇
+🛒 <a href="${product.url}">CLIQUE AQUI PARA COMPRAR</a>
+━━━━━━━━━━━━━━━━━━`;
 
     try {
       if (product.image) {
