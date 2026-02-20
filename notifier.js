@@ -9,7 +9,6 @@ import {
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID;
 
-// Lê o limite do Railway ou usa 12 como fallback padrão
 const DISCOUNT_THRESHOLD = parseInt(process.env.DISCOUNT_THRESHOLD_PERCENT || "12", 10);
 
 function escapeHtml(text) {
@@ -20,7 +19,6 @@ function escapeHtml(text) {
     .replace(/>/g, "&gt;");
 }
 
-// Formata números para o padrão de moeda brasileira R$ 1.234,56
 function formatCurrency(value) {
   return value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
@@ -67,19 +65,20 @@ export async function notifyIfPriceDropped(product) {
   if (product.price < lastPrice) {
     const discountPercent = ((lastPrice - product.price) / lastPrice) * 100;
 
-    // Filtro dinâmico baseado na variável do Railway
     if (discountPercent < DISCOUNT_THRESHOLD) {
       await setLastPrice(product.id, product.price);
-      return; 
+      return;
     }
 
     const cooldown = await isCooldownActive(product.id);
-    if (cooldown) return;
+    if (cooldown) {
+      await setLastPrice(product.id, product.price); // ✅ CORREÇÃO: atualiza preço mesmo em cooldown
+      return;
+    }
 
     const { label, icon, discount } = getOfferLevel(lastPrice, product.price);
     const savings = lastPrice - product.price;
 
-    // Mensagem aprimorada com melhor espaçamento e visual
     const textMessage = 
 `${icon} <b>${label}</b> ${icon}
 ━━━━━━━━━━━━━━━━━━
@@ -98,7 +97,7 @@ export async function notifyIfPriceDropped(product) {
 ━━━━━━━━━━━━━━━━━━`;
 
     try {
-      if (product.image) {
+      if (product.image && product.image.startsWith("http")) {
         await sendTelegramPhoto(product.image, textMessage);
       } else {
         await sendTelegramText(textMessage);
