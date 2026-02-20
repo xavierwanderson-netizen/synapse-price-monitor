@@ -25,30 +25,36 @@ function formatCurrency(value) {
 
 function getOfferLevel(oldPrice, newPrice) {
   const discount = ((oldPrice - newPrice) / oldPrice) * 100;
-  
   if (discount >= 40) return { label: "💥 PREÇO EXPLODIU (IMPERDÍVEL)", icon: "🧨", discount };
   if (discount >= 25) return { label: "🚨 SUPER OFERTA DETECTADA", icon: "⭐", discount };
   if (discount >= DISCOUNT_THRESHOLD) return { label: "🔥 BOA OFERTA", icon: "✅", discount };
   return { label: "📉 QUEDA DE PREÇO", icon: "🏷️", discount };
 }
 
-async function sendTelegramPhoto(image, caption) {
-  const url = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendPhoto`;
-  await axios.post(url, {
+// Botão inline clicável — converte muito mais que link no texto
+const inlineKeyboard = (url) => ({
+  inline_keyboard: [[
+    { text: "🛒 COMPRAR AGORA", url }
+  ]]
+});
+
+async function sendTelegramPhoto(image, caption, url) {
+  await axios.post(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendPhoto`, {
     chat_id: TELEGRAM_CHAT_ID,
     photo: image,
     caption,
-    parse_mode: "HTML"
+    parse_mode: "HTML",
+    reply_markup: inlineKeyboard(url)
   });
 }
 
-async function sendTelegramText(text) {
-  const url = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`;
-  await axios.post(url, {
+async function sendTelegramText(text, url) {
+  await axios.post(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
     chat_id: TELEGRAM_CHAT_ID,
     text,
     parse_mode: "HTML",
-    disable_web_page_preview: false
+    disable_web_page_preview: false,
+    reply_markup: inlineKeyboard(url)
   });
 }
 
@@ -72,14 +78,14 @@ export async function notifyIfPriceDropped(product) {
 
     const cooldown = await isCooldownActive(product.id);
     if (cooldown) {
-      await setLastPrice(product.id, product.price); // ✅ CORREÇÃO: atualiza preço mesmo em cooldown
+      await setLastPrice(product.id, product.price); // atualiza preço mesmo em cooldown
       return;
     }
 
     const { label, icon, discount } = getOfferLevel(lastPrice, product.price);
     const savings = lastPrice - product.price;
 
-    const textMessage = 
+    const textMessage =
 `${icon} <b>${label}</b> ${icon}
 ━━━━━━━━━━━━━━━━━━
 📦 <b>${escapeHtml(product.title)}</b>
@@ -90,23 +96,19 @@ export async function notifyIfPriceDropped(product) {
 💰 <b>Economia de: R$ ${formatCurrency(savings)}</b>
 📉 Desconto: <b>${discount.toFixed(0)}% OFF</b>
 🏷️ Loja: <code>${product.platform.toUpperCase()}</code>
-
-🚀 <b>APROVEITE AGORA:</b>
-👇 👇 👇 👇 👇
-🛒 <a href="${product.url}">CLIQUE AQUI PARA COMPRAR</a>
 ━━━━━━━━━━━━━━━━━━`;
 
     try {
       if (product.image && product.image.startsWith("http")) {
-        await sendTelegramPhoto(product.image, textMessage);
+        await sendTelegramPhoto(product.image, textMessage, product.url);
       } else {
-        await sendTelegramText(textMessage);
+        await sendTelegramText(textMessage, product.url);
       }
       await markNotified(product.id);
     } catch (err) {
       console.error("❌ Erro ao notificar Telegram, tentando fallback apenas texto.");
       try {
-        await sendTelegramText(textMessage);
+        await sendTelegramText(textMessage, product.url);
         await markNotified(product.id);
       } catch (err2) {
         console.error("❌ Falha total no envio Telegram:", err2.message);
