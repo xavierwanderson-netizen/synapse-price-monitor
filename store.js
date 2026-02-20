@@ -1,30 +1,35 @@
 import fs from "fs/promises";
 import path from "path";
 
-// Prioriza o caminho oficial do volume no Railway para persistência garantida
-const DATA_DIR = process.env.RAILWAY_VOLUME_MOUNT_PATH || process.env.VOLUME_PATH || "/data";
+// ✅ CORRIGIDO: path consistente com o volume Railway montado em /.data
+const DATA_DIR = process.env.RAILWAY_VOLUME_MOUNT_PATH || "/.data";
 const STORE_FILE = path.join(DATA_DIR, "store.json");
 
-// Converte a variável do Railway ALERT_COOLDOWN_HOURS para milissegundos (padrão 12h)
 const COOLDOWN_HOURS = parseInt(process.env.ALERT_COOLDOWN_HOURS || "12", 10);
 const COOLDOWN_MS = COOLDOWN_HOURS * 60 * 60 * 1000;
 
+// ✅ MELHORIA: Cache em memória evita centenas de leituras de disco por ciclo
+let memoryCache = null;
+
+async function getStore() {
+  if (memoryCache) return memoryCache;
+  try {
+    const raw = await fs.readFile(STORE_FILE, "utf-8");
+    memoryCache = JSON.parse(raw);
+    return memoryCache;
+  } catch {
+    memoryCache = {};
+    return memoryCache;
+  }
+}
+
 async function writeStore(store) {
+  memoryCache = store;
   try {
     await fs.mkdir(DATA_DIR, { recursive: true });
     await fs.writeFile(STORE_FILE, JSON.stringify(store, null, 2));
   } catch (err) {
     console.error("❌ Erro ao persistir dados no volume Railway:", err.message);
-  }
-}
-
-export async function getStore() {
-  try {
-    const raw = await fs.readFile(STORE_FILE, "utf-8");
-    return JSON.parse(raw);
-  } catch {
-    // Retorna objeto vazio caso o arquivo ainda não exista no volume
-    return {};
   }
 }
 
@@ -43,17 +48,11 @@ export async function setLastPrice(id, price) {
   await writeStore(store);
 }
 
-/**
- * Verifica se o período de silêncio (cooldown) está ativo para o produto.
- * Utiliza a variável ALERT_COOLDOWN_HOURS definida no painel do Railway.
- */
 export async function isCooldownActive(id) {
   const store = await getStore();
   const lastNotifiedAt = store[id]?.lastNotifiedAt;
   if (!lastNotifiedAt) return false;
-
-  const timePassed = Date.now() - lastNotifiedAt;
-  return timePassed < COOLDOWN_MS;
+  return Date.now() - lastNotifiedAt < COOLDOWN_MS;
 }
 
 export async function markNotified(id) {
@@ -65,19 +64,14 @@ export async function markNotified(id) {
   await writeStore(store);
 }
 
-/**
- * Função utilitária para atualizar preço e retornar o valor antigo em uma única operação.
- */
 export async function updatePrice(id, price) {
   const store = await getStore();
   const lastPrice = store[id]?.lastPrice ?? null;
-
   store[id] = {
     ...store[id],
     lastPrice: price,
     lastSeenAt: Date.now()
   };
-
   await writeStore(store);
   return lastPrice;
 }
