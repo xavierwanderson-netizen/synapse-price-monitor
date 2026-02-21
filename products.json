@@ -997,9 +997,21 @@
     "platform": "amazon"
   },
   {
+    "asin": "B07J4J9XKZ",
+    "platform": "amazon"
+  },
+  {
     "itemId": 22809583803,
     "shopId": 404012601,
     "platform": "shopee"
+  },
+  {
+    "asin": "B07PZWDZT9",
+    "platform": "amazon"
+  },
+  {
+    "asin": "B07XZDZWTG",
+    "platform": "amazon"
   },
   {
     "itemId": 22419982231,
@@ -1007,9 +1019,25 @@
     "platform": "shopee"
   },
   {
+    "asin": "B07M6KHQKT",
+    "platform": "amazon"
+  },
+  {
+    "asin": "B07XLCXJ4P",
+    "platform": "amazon"
+  },
+  {
     "itemId": 18599505856,
     "shopId": 279362291,
     "platform": "shopee"
+  },
+  {
+    "asin": "B084S6BCJN",
+    "platform": "amazon"
+  },
+  {
+    "asin": "B0C3V5X3QT",
+    "platform": "amazon"
   },
   {
     "itemId": 22598187189,
@@ -1017,9 +1045,25 @@
     "platform": "shopee"
   },
   {
+    "asin": "B0FH7LY3R4",
+    "platform": "amazon"
+  },
+  {
+    "asin": "B0754KMGFN",
+    "platform": "amazon"
+  },
+  {
     "itemId": 18297206318,
     "shopId": 441192906,
     "platform": "shopee"
+  },
+  {
+    "asin": "B0755K43WL",
+    "platform": "amazon"
+  },
+  {
+    "asin": "B076KZYYRJ",
+    "platform": "amazon"
   },
   {
     "itemId": 22897722069,
@@ -1027,9 +1071,25 @@
     "platform": "shopee"
   },
   {
+    "asin": "B0FTT42SDP",
+    "platform": "amazon"
+  },
+  {
+    "asin": "B0FPRGYFCL",
+    "platform": "amazon"
+  },
+  {
     "itemId": 20999498199,
     "shopId": 1222975074,
     "platform": "shopee"
+  },
+  {
+    "asin": "B00P9VQCXY",
+    "platform": "amazon"
+  },
+  {
+    "asin": "B000B6MKMO",
+    "platform": "amazon"
   },
   {
     "itemId": 23296861587,
@@ -1037,9 +1097,25 @@
     "platform": "shopee"
   },
   {
+    "asin": "B08VPS711D",
+    "platform": "amazon"
+  },
+  {
+    "asin": "B07KQMVYKL",
+    "platform": "amazon"
+  },
+  {
     "itemId": 22592439747,
     "shopId": 944861960,
     "platform": "shopee"
+  },
+  {
+    "asin": "B0G2ZPMTGX",
+    "platform": "amazon"
+  },
+  {
+    "asin": "B07PF1KJXP",
+    "platform": "amazon"
   },
   {
     "itemId": 23098172010,
@@ -1047,13 +1123,190 @@
     "platform": "shopee"
   },
   {
+    "asin": "B0CQKKHT5J",
+    "platform": "amazon"
+  },
+  {
+    "asin": "B0FPGF9J2J",
+    "platform": "amazon"
+  },
+  {
     "itemId": 23994371964,
     "shopId": 390180328,
     "platform": "shopee"
   },
   {
+    "asin": "B0FZDSXJMY",
+    "platform": "amazon"
+  },
+  {
     "itemId": 23096887770,
     "shopId": 652390609,
+    "platform": "shopee"
+  },
+  {
+    "shopId": 358070092,
+    "itemId": 21598960731,
+    "platform": "shopee"
+  },
+  {
+    "shopId": 902215706,
+    "itemId": 19997387987,
+    "platform": "shopee"
+  },
+  {
+    "shopId": 368158058,
+    "itemId": 21398776402,
+    "platform": "shopee"
+  },
+  {
+    "shopId": 800287152,
+    "itemId": 22719293954,
+    "platform": "shopee"
+  },
+  {
+    "shopId": 802301151,
+    "itemId": 58201597224,
+    "platform": "shopee"
+  },
+  {
+    "shopId": 989926234,
+    "itemId": 22591334128,
+    "platform": "shopee"
+  },
+  {
+    "shopId": 408462886,
+    "itemId": 21197187704,
+    "platform": "shopee"
+  },
+  {
+    "shopId": 346869758,
+    "itemId": 23699259061,
+    "platform": "shopee"
+  },
+  {
+    "shopId": 615365256,
+    "itemId": 58250968173,
+    "platform": "shopee"
+  },
+  {
+    "shopId": 1201799564,
+    "itemId": 23799043535,
+    "platform": "shopee"
+  },
+  {
+    "shopId": 299222049,
+    "itemId": 23593245346,
+    "platform": "shopee"
+  },
+  {
+    "shopId": 1035529983,
+    "itemId": 19798012231,
+    "platform": "shopee"
+  },
+  {
+    "shopId": 344463945,
+    "itemId": 14873502538,
+    "platform": "shopee"
+  },
+  {
+    "shopId": 763855438,
+    "itemId": 53302144079,
+    "platform": "shopee"
+  },
+  {
+    "shopId": 1478169760,
+    "itemId": 22998222118,
+    "platform": "shopee"
+  },
+  {
+    "shopId": 231390563,
+    "itemId": 20219212708,
+    "platform": "shopee"
+  },
+  {
+    "shopId": 1602473148,
+    "itemId": 58202408264,
+    "platform": "shopee"
+  },
+  {
+    "shopId": 1004193678,
+    "itemId": 23393399584,
+    "platform": "shopee"
+  },
+  {
+    "shopId": 835812515,
+    "itemId": 22791796644,
+    "platform": "shopee"
+  },
+  {
+    "shopId": 379684671,
+    "itemId": 58250343372,
+    "platform": "shopee"
+  },
+  {
+    "shopId": 1414811075,
+    "itemId": 23394646482,
+    "platform": "shopee"
+  },
+  {
+    "shopId": 1691775333,
+    "itemId": 58252141488,
+    "platform": "shopee"
+  },
+  {
+    "shopId": 1223641329,
+    "itemId": 23293855842,
+    "platform": "shopee"
+  },
+  {
+    "shopId": 1177319319,
+    "itemId": 22294556628,
+    "platform": "shopee"
+  },
+  {
+    "shopId": 1301982828,
+    "itemId": 23294177009,
+    "platform": "shopee"
+  },
+  {
+    "shopId": 231390563,
+    "itemId": 18119166259,
+    "platform": "shopee"
+  },
+  {
+    "shopId": 1420555782,
+    "itemId": 44308814144,
+    "platform": "shopee"
+  },
+  {
+    "shopId": 322923831,
+    "itemId": 18198653716,
+    "platform": "shopee"
+  },
+  {
+    "shopId": 734822317,
+    "itemId": 19896908401,
+    "platform": "shopee"
+  },
+  {
+    "shopId": 840367141,
+    "itemId": 21162875347,
+    "platform": "shopee"
+  },
+  {
+    "shopId": 1610896010,
+    "itemId": 58253767614,
+    "platform": "shopee"
+  },
+  {
+    "shopId": 1663185469,
+    "itemId": 58252742366,
+    "platform": "shopee"
+  },
+  {
+    "shopId": 1006215031,
+    "itemId": 28515727286,
     "platform": "shopee"
   }
 ]
