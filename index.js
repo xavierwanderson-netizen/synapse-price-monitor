@@ -132,6 +132,8 @@ async function runCycleSafely() {
 
 console.log("🟢 Monitor Synapse Iniciado");
 console.log(`⚙️ Configurações: Intervalo ${CHECK_INTERVAL_MINUTES}m | Delay Base ${REQUEST_DELAY_MS}ms | Backoff ${BACKOFF_BASE}ms`);
+console.log(`📁 Data dir persistente: ${DATA_DIR}`);
+console.log("🛡️ Proteção de sobreposição de ciclos: ATIVA");
 
 runCycleSafely();
 setInterval(runCycleSafely, CHECK_INTERVAL_MINUTES * 60 * 1000);
