@@ -5,11 +5,13 @@ import { fetchMLProduct } from "./mercadolivre.js";
 import { fetchShopeeProduct } from "./shopee.js";
 import { notifyIfPriceDropped } from "./notifier.js";
 
+const DATA_DIR = process.env.RAILWAY_VOLUME_MOUNT_PATH || "/.data";
+
 // ─── RESET TEMPORÁRIO DE TOKENS ML ───────────────────────────────────────────
 // Para usar: adicione RESET_ML_TOKENS=true nas variáveis do Railway e faça deploy.
 // Após ver "🗑️ Tokens ML deletados" nos logs, remova a variável e faça novo deploy.
 if (process.env.RESET_ML_TOKENS === "true") {
-  const mlTokensPath = "/.data/ml_tokens_v2.json";
+  const mlTokensPath = `${DATA_DIR}/ml_tokens_v2.json`;
   if (fs.existsSync(mlTokensPath)) {
     fs.unlinkSync(mlTokensPath);
     console.log("🗑️ Tokens ML deletados. Próximo ciclo usará o ML_INITIAL_CODE.");
@@ -23,7 +25,7 @@ if (process.env.RESET_ML_TOKENS === "true") {
 // Para usar: adicione RESET_STORE=true nas variáveis do Railway e faça deploy.
 // Após ver "🗑️ Store resetado" nos logs, remova a variável e faça novo deploy.
 if (process.env.RESET_STORE === "true") {
-  const storePath = "/.data/store.json";
+  const storePath = `${DATA_DIR}/store.json`;
   if (fs.existsSync(storePath)) {
     fs.unlinkSync(storePath);
     console.log("🗑️ Store resetado. Próximo ciclo vai reaprender os preços reais.");
@@ -99,8 +101,27 @@ async function checkOnce() {
   console.log(`✅ Ciclo finalizado. Próxima verificação em ${CHECK_INTERVAL_MINUTES} minutos.`);
 }
 
+// ─── PROTEÇÃO CONTRA SOBREPOSIÇÃO DE CICLOS ──────────────────────────────────
+// Garante que um novo ciclo não inicia enquanto o anterior ainda está rodando.
+// Evita race conditions em leitura/escrita no store e duplicidade de notificações.
+let cycleInProgress = false;
+
+async function runCycleSafely() {
+  if (cycleInProgress) {
+    console.warn("⚠️ Ciclo anterior ainda em execução. Pulando este intervalo.");
+    return;
+  }
+  cycleInProgress = true;
+  try {
+    await checkOnce();
+  } finally {
+    cycleInProgress = false;
+  }
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
 console.log("🟢 Monitor Synapse Iniciado");
 console.log(`⚙️ Configurações: Intervalo ${CHECK_INTERVAL_MINUTES}m | Delay Base ${REQUEST_DELAY_MS}ms | Backoff ${BACKOFF_BASE}ms`);
 
-checkOnce();
-setInterval(checkOnce, CHECK_INTERVAL_MINUTES * 60 * 1000);
+runCycleSafely();
+setInterval(runCycleSafely, CHECK_INTERVAL_MINUTES * 60 * 1000);
