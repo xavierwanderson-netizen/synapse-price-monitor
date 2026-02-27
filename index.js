@@ -1,15 +1,18 @@
 import "dotenv/config";
 import fs from "fs";
+import path from "path";
 import { fetchAmazonProduct } from "./amazon.js";
 import { fetchMLProduct } from "./mercadolivre.js";
 import { fetchShopeeProduct } from "./shopee.js";
 import { notifyIfPriceDropped } from "./notifier.js";
 
+const DATA_DIR = process.env.RAILWAY_VOLUME_MOUNT_PATH || "/.data";
+
 // ─── RESET TEMPORÁRIO DE TOKENS ML ───────────────────────────────────────────
 // Para usar: adicione RESET_ML_TOKENS=true nas variáveis do Railway e faça deploy.
 // Após ver "🗑️ Tokens ML deletados" nos logs, remova a variável e faça novo deploy.
 if (process.env.RESET_ML_TOKENS === "true") {
-  const mlTokensPath = "/.data/ml_tokens_v2.json";
+  const mlTokensPath = path.join(DATA_DIR, "ml_tokens_v2.json");
   if (fs.existsSync(mlTokensPath)) {
     fs.unlinkSync(mlTokensPath);
     console.log("🗑️ Tokens ML deletados. Próximo ciclo usará o ML_INITIAL_CODE.");
@@ -23,7 +26,7 @@ if (process.env.RESET_ML_TOKENS === "true") {
 // Para usar: adicione RESET_STORE=true nas variáveis do Railway e faça deploy.
 // Após ver "🗑️ Store resetado" nos logs, remova a variável e faça novo deploy.
 if (process.env.RESET_STORE === "true") {
-  const storePath = "/.data/store.json";
+  const storePath = path.join(DATA_DIR, "store.json");
   if (fs.existsSync(storePath)) {
     fs.unlinkSync(storePath);
     console.log("🗑️ Store resetado. Próximo ciclo vai reaprender os preços reais.");
@@ -51,6 +54,17 @@ function loadProducts() {
   }
 }
 
+function getProductRef(product, index) {
+  return product.seq || index + 1;
+}
+
+function getProductKey(product) {
+  if (product.platform === "amazon") return `asin=${product.asin || "n/a"}`;
+  if (product.platform === "mercadolivre") return `mlId=${product.mlId || "n/a"}`;
+  if (product.platform === "shopee") return `itemId=${product.itemId || "n/a"} shopId=${product.shopId || "n/a"}`;
+  return "id=n/a";
+}
+
 async function checkOnce() {
   const products = loadProducts();
   if (products.length === 0) return;
@@ -60,7 +74,8 @@ async function checkOnce() {
   for (let i = 0; i < products.length; i++) {
     const product = products[i];
     let productData = null;
-    const progress = `[${i + 1}/${products.length}]`;
+    const productRef = getProductRef(product, i);
+    const progress = `[${i + 1}/${products.length}]#${productRef}`;
 
     try {
       // Validações de Integridade do JSON (Segurança Anti-Retrocesso)
@@ -88,7 +103,7 @@ async function checkOnce() {
       }
     } catch (e) {
       consecutiveErrors++;
-      console.error(`${progress} ❌ Falha (${product.platform || "Desconhecida"}): ${e.message}`);
+      console.error(`${progress} ❌ Falha (${product.platform || "Desconhecida"} | ${getProductKey(product)}): ${e.message}`);
     }
 
     // Cálculo de Delay Dinâmico com Backoff Exponencial
@@ -99,8 +114,24 @@ async function checkOnce() {
   console.log(`✅ Ciclo finalizado. Próxima verificação em ${CHECK_INTERVAL_MINUTES} minutos.`);
 }
 
+let cycleInProgress = false;
+
+async function runCycleSafely() {
+  if (cycleInProgress) {
+    console.warn("⚠️ Ciclo anterior ainda em execução. Pulando disparo para evitar sobreposição.");
+    return;
+  }
+
+  cycleInProgress = true;
+  try {
+    await checkOnce();
+  } finally {
+    cycleInProgress = false;
+  }
+}
+
 console.log("🟢 Monitor Synapse Iniciado");
 console.log(`⚙️ Configurações: Intervalo ${CHECK_INTERVAL_MINUTES}m | Delay Base ${REQUEST_DELAY_MS}ms | Backoff ${BACKOFF_BASE}ms`);
 
-checkOnce();
-setInterval(checkOnce, CHECK_INTERVAL_MINUTES * 60 * 1000);
+runCycleSafely();
+setInterval(runCycleSafely, CHECK_INTERVAL_MINUTES * 60 * 1000);
