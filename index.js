@@ -19,6 +19,20 @@ if (process.env.RESET_ML_TOKENS === "true") {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
+// ─── RESET DO STORE (PREÇOS BASE) ────────────────────────────────────────────
+// Para usar: adicione RESET_STORE=true nas variáveis do Railway e faça deploy.
+// Após ver "🗑️ Store resetado" nos logs, remova a variável e faça novo deploy.
+if (process.env.RESET_STORE === "true") {
+  const storePath = "/.data/store.json";
+  if (fs.existsSync(storePath)) {
+    fs.unlinkSync(storePath);
+    console.log("🗑️ Store resetado. Próximo ciclo vai reaprender os preços reais.");
+  } else {
+    console.log("ℹ️ RESET_STORE ativo, mas nenhum store.json encontrado.");
+  }
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
 // Configurações via Variáveis de Ambiente
 const CHECK_INTERVAL_MINUTES = parseInt(process.env.CHECK_INTERVAL_MINUTES || "30", 10);
 const REQUEST_DELAY_MS = parseInt(process.env.REQUEST_DELAY_MS || "2500", 10);
