@@ -61,6 +61,13 @@ async function sendTelegramText(text, url) {
 export async function notifyIfPriceDropped(product) {
   if (!product || !product.id || !product.price) return;
 
+  // Sanity check: ignora preços obviamente inválidos (< R$ 1,00)
+  // Evita falsos alertas causados por erros de unidade (ex: centavos tratados como reais)
+  if (product.price < 1.0) {
+    console.warn(`⚠️ Preço suspeito ignorado para ${product.id}: R$ ${product.price} (< R$ 1,00)`);
+    return;
+  }
+
   const lastPrice = await getLastPrice(product.id);
 
   if (lastPrice === null) {
