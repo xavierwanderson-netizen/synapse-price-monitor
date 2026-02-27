@@ -84,13 +84,10 @@ export async function fetchShopeeProduct(itemId, shopId) {
     // Converte para link curto antes de retornar
     const finalUrl = await generateShopeeShortLink(node.productLink);
 
-    // A API da Shopee retorna priceMin em centavos (ex: 35000 = R$ 350,00)
-    const priceInReais = parseFloat(node.priceMin) / 100;
-
     return {
       id: `shopee_${itemId}`,
       title: node.productName,
-      price: priceInReais,
+      price: parseFloat(node.priceMin),
       url: finalUrl,
       image: node.imageUrl || null,
       platform: "shopee"
