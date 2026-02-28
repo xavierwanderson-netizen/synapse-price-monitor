@@ -66,15 +66,47 @@ async function scrapeAmazon(asin, marketplace, partnerTag, timeout) {
     timeout: timeout
   });
   const $ = cheerio.load(data);
-  const whole = $(".a-price-whole").first().text().replace(/[^\d]/g, "");
-  const fraction = $(".a-price-fraction").first().text().replace(/[^\d]/g, "") || "00";
-  
-  if (!whole) return null;
+
+  // Seletores em ordem de prioridade — do mais específico (preço principal novo) ao mais genérico.
+  // Evita capturar preços de "Usado", "Outros vendedores" ou promoções secundárias.
+  const PRICE_SELECTORS = [
+    "#corePriceDisplay_desktop_feature_div .a-price-whole",  // bloco principal desktop
+    "#corePrice_desktop .a-price-whole",                     // alternativo desktop
+    "#corePriceDisplay_mobile_feature_div .a-price-whole",   // bloco principal mobile
+    "#apex_offerDisplay_desktop .a-price-whole",             // apex offer
+    "#price_inside_buybox",                                  // buybox direto (já formatado)
+    "#newBuyBoxPrice",                                       // novo buybox
+  ];
+
+  let priceText = null;
+  for (const selector of PRICE_SELECTORS) {
+    const el = $(selector).first();
+    if (el.length) {
+      priceText = el.text().trim();
+      break;
+    }
+  }
+
+  if (!priceText) return null;
+
+  // Normaliza o preço: remove símbolo R$, espaços e converte vírgula para ponto
+  // Ex: "R$ 266,66" -> 266.66 | "266," -> 266.00
+  const normalized = priceText
+    .replace(/R\$\s*/gi, "")
+    .replace(/\./g, "")       // remove separador de milhar
+    .replace(",", ".")         // vírgula decimal -> ponto
+    .trim();
+
+  const price = parseFloat(normalized);
+  if (!price || price <= 0) return null;
+
+  // Sanity check: rejeita preços abaixo de R$ 1
+  if (price < 1) return null;
 
   return { 
     id: `amazon_${asin}`, 
     title: $("#productTitle").text().trim() || "Produto Amazon", 
-    price: parseFloat(`${whole}.${fraction}`), 
+    price,
     url, 
     image: $("#landingImage").attr("src") || null, 
     platform: "amazon",
