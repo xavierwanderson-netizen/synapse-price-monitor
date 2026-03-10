@@ -1,7 +1,4 @@
-import fs from "fs/promises";
-import path from "path";
 
-const DATA_DIR = process.env.RAILWAY_VOLUME_MOUNT_PATH || "/.data";
 const STORE_FILE = path.join(DATA_DIR, "store.json");
 const COOLDOWN_HOURS = parseInt(process.env.ALERT_COOLDOWN_HOURS || "12", 10);
 const COOLDOWN_MS = COOLDOWN_HOURS * 60 * 60 * 1000;
