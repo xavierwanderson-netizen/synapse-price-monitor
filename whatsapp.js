@@ -3,18 +3,15 @@ import { Boom } from "@hapi/boom";
 import path from "path";
 import fs from "fs";
 import pino from "pino";
+import qrcode from "qrcode-terminal";
 
 const DATA_DIR = process.env.RAILWAY_VOLUME_MOUNT_PATH || "/.data";
 const AUTH_DIR = path.join(DATA_DIR, "wa_auth");
 const WA_GROUP_ID = process.env.WA_GROUP_ID;
-// Código do convite — só o código, sem a URL completa
-// Ex: se o link é https://chat.whatsapp.com/GpNVPRuEUSrLVSlWvvNge2
-// defina WA_GROUP_INVITE=GpNVPRuEUSrLVSlWvvNge2
 const WA_GROUP_INVITE = process.env.WA_GROUP_INVITE;
 
 let sock = null;
 let isReady = false;
-let qrPrinted = false;
 
 function humanDelay() {
   const ms = 3000 + Math.floor(Math.random() * 5000);
@@ -33,7 +30,7 @@ async function connectWhatsApp() {
     version,
     auth: state,
     logger: pino({ level: "silent" }),
-    printQRInTerminal: true,
+    printQRInTerminal: false, // desativado — gerenciamos manualmente abaixo
     browser: ["Chrome (Linux)", "Chrome", "120.0.0"],
     connectTimeoutMs: 60000,
     retryRequestDelayMs: 2000,
@@ -44,20 +41,23 @@ async function connectWhatsApp() {
   sock.ev.on("connection.update", (update) => {
     const { connection, lastDisconnect, qr } = update;
 
-    if (qr && !qrPrinted) {
-      qrPrinted = true;
-      console.log("📱 [WhatsApp] QR Code gerado! Escaneie nos Deploy Logs do Railway.");
+    // Imprime o QR manualmente nos logs do Railway
+    if (qr) {
+      console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+      console.log("📱 [WhatsApp] Escaneie o QR Code abaixo:");
+      console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+      qrcode.generate(qr, { small: true });
+      console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+      console.log("📱 WhatsApp → ⋮ → Aparelhos conectados → Conectar aparelho");
     }
 
     if (connection === "open") {
       isReady = true;
-      qrPrinted = false;
       console.log("✅ [WhatsApp] Conectado com sucesso!");
 
-      // Aguarda 3s para estabilizar e então entra no grupo + lista IDs
       setTimeout(async () => {
         try {
-          // Tenta entrar no grupo pelo código de convite
+          // Entra no grupo pelo código de convite se definido
           if (WA_GROUP_INVITE) {
             try {
               const groupId = await sock.groupAcceptInvite(WA_GROUP_INVITE);
@@ -72,7 +72,7 @@ async function connectWhatsApp() {
             }
           }
 
-          // Lista todos os grupos — mostra o ID de cada um nos logs
+          // Lista todos os grupos com ID
           const groups = await sock.groupFetchAllParticipating();
           const list = Object.values(groups);
           console.log(`📋 [WhatsApp] ${list.length} grupo(s) encontrado(s):`);
@@ -105,7 +105,6 @@ async function connectWhatsApp() {
 }
 
 export async function initWhatsApp() {
-  // Inicia se tiver GROUP_ID configurado OU se tiver INVITE para entrar no grupo
   if (!WA_GROUP_ID && !WA_GROUP_INVITE) {
     console.log("⚠️ [WhatsApp] WA_GROUP_ID não definido. Notificações WhatsApp desativadas.");
     return;
