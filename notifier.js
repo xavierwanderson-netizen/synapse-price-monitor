@@ -11,6 +11,55 @@ const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID;
 
 const DISCOUNT_THRESHOLD = parseInt(process.env.DISCOUNT_THRESHOLD_PERCENT || "12", 10);
 
+/**
+ * Verifica se está no horário de pausa de notificações (23:30 - 08:30)
+ * @returns {boolean} true se está em horário de pausa
+ */
+function isNotificationPauseTime() {
+  const now = new Date();
+  const hours = now.getHours();
+  const minutes = now.getMinutes();
+  const totalMinutes = hours * 60 + minutes;
+
+  // 23:30 = 1410 minutos
+  // 08:30 = 510 minutos
+  const pauseStartMinutes = 23 * 60 + 30; // 1410
+  const pauseEndMinutes = 8 * 60 + 30;    // 510
+
+  // Se está entre 23:30 e 23:59 OU entre 00:00 e 08:30
+  return totalMinutes >= pauseStartMinutes || totalMinutes < pauseEndMinutes;
+}
+
+/**
+ * Retorna informações sobre o tempo até a próxima janela de notificação
+ * @returns {object} { isPaused: boolean, minutesUntilResume: number, resumeTime: string }
+ */
+function getNotificationWindowInfo() {
+  const now = new Date();
+  const hours = now.getHours();
+  const minutes = now.getMinutes();
+  const totalMinutes = hours * 60 + minutes;
+
+  const pauseStartMinutes = 23 * 60 + 30; // 1410
+  const pauseEndMinutes = 8 * 60 + 30;    // 510
+
+  if (totalMinutes >= pauseStartMinutes) {
+    // Está em pausa noturna (23:30 - 23:59)
+    const minutesUntilResume = (24 * 60 - totalMinutes) + pauseEndMinutes;
+    const resumeTime = new Date(now.getTime() + minutesUntilResume * 60000).toLocaleTimeString('pt-BR');
+    return { isPaused: true, minutesUntilResume, resumeTime };
+  } else if (totalMinutes < pauseEndMinutes) {
+    // Está em pausa madrugada (00:00 - 08:30)
+    const minutesUntilResume = pauseEndMinutes - totalMinutes;
+    const resumeTime = new Date(now.getTime() + minutesUntilResume * 60000).toLocaleTimeString('pt-BR');
+    return { isPaused: true, minutesUntilResume, resumeTime };
+  } else {
+    // Está ativo (08:30 - 23:30)
+    const minutesUntilPause = pauseStartMinutes - totalMinutes;
+    return { isPaused: false, minutesUntilPause, pauseStartsAt: new Date(now.getTime() + minutesUntilPause * 60000).toLocaleTimeString('pt-BR') };
+  }
+}
+
 function escapeHtml(text) {
   if (!text) return "";
   return text
@@ -89,6 +138,14 @@ export async function notifyIfPriceDropped(product) {
       return;
     }
 
+    // ✅ NOVO: Verificar se está no horário de pausa de notificações
+    if (isNotificationPauseTime()) {
+      const windowInfo = getNotificationWindowInfo();
+      console.log(`⏸️  Notificação em pausa (23:30-08:30). Será enviada após ${windowInfo.resumeTime}`);
+      await setLastPrice(product.id, product.price); // atualiza preço mesmo em pausa
+      return;
+    }
+
     const { label, icon, discount } = getOfferLevel(lastPrice, product.price);
     const savings = lastPrice - product.price;
 
@@ -124,4 +181,15 @@ export async function notifyIfPriceDropped(product) {
   }
 
   await setLastPrice(product.id, product.price);
+}
+
+// ✅ EXPORTAR: Função para debug/monitoramento
+export function debugNotificationWindow() {
+  const info = getNotificationWindowInfo();
+  if (info.isPaused) {
+    console.log(`⏸️  NOTIFICAÇÕES EM PAUSA até ${info.resumeTime} (${info.minutesUntilResume} minutos)`);
+  } else {
+    console.log(`✅ NOTIFICAÇÕES ATIVAS até ${info.pauseStartsAt} (${info.minutesUntilPause} minutos)`);
+  }
+  return info;
 }
