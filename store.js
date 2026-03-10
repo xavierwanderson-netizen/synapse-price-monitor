@@ -1,14 +1,12 @@
 import fs from "fs/promises";
 import path from "path";
 
-// ✅ CORRIGIDO: path consistente com o volume Railway montado em /.data
 const DATA_DIR = process.env.RAILWAY_VOLUME_MOUNT_PATH || "/.data";
 const STORE_FILE = path.join(DATA_DIR, "store.json");
-
 const COOLDOWN_HOURS = parseInt(process.env.ALERT_COOLDOWN_HOURS || "12", 10);
 const COOLDOWN_MS = COOLDOWN_HOURS * 60 * 60 * 1000;
 
-// ✅ MELHORIA: Cache em memória evita centenas de leituras de disco por ciclo
+// Cache em memória evita centenas de leituras de disco por ciclo
 let memoryCache = null;
 
 async function getStore() {
@@ -27,7 +25,8 @@ async function writeStore(store) {
   memoryCache = store;
   try {
     await fs.mkdir(DATA_DIR, { recursive: true });
-    await fs.writeFile(STORE_FILE, JSON.stringify(store, null, 2));
+    // JSON compacto — evita crescimento desnecessário do arquivo
+    await fs.writeFile(STORE_FILE, JSON.stringify(store));
   } catch (err) {
     console.error("❌ Erro ao persistir dados no volume Railway:", err.message);
   }
@@ -74,4 +73,24 @@ export async function updatePrice(id, price) {
   };
   await writeStore(store);
   return lastPrice;
+}
+
+// Remove entradas de produtos que não estão mais na lista ativa
+// Evita crescimento infinito do store.json
+export async function cleanStaleEntries(activeIds) {
+  const store = await getStore();
+  const activeSet = new Set(activeIds);
+  let removed = 0;
+
+  for (const key of Object.keys(store)) {
+    if (!activeSet.has(key)) {
+      delete store[key];
+      removed++;
+    }
+  }
+
+  if (removed > 0) {
+    await writeStore(store);
+    console.log(`🧹 Store: ${removed} entradas obsoletas removidas.`);
+  }
 }
