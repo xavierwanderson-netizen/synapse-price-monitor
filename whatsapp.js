@@ -3,7 +3,6 @@ import { Boom } from "@hapi/boom";
 import path from "path";
 import fs from "fs";
 import pino from "pino";
-import qrcode from "qrcode-terminal";
 
 const DATA_DIR = process.env.RAILWAY_VOLUME_MOUNT_PATH || "/.data";
 const AUTH_DIR = path.join(DATA_DIR, "wa_auth");
@@ -18,6 +17,20 @@ function humanDelay() {
   return new Promise(r => setTimeout(r, ms));
 }
 
+// Gera QR como URL de imagem para copiar e escanear no celular
+function printQRAsURL(qr) {
+  const encoded = encodeURIComponent(qr);
+  const url = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encoded}`;
+  console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+  console.log("📱 [WhatsApp] ESCANEIE O QR CODE:");
+  console.log("👇 Abra o link abaixo no navegador e escaneie a imagem:");
+  console.log("");
+  console.log(url);
+  console.log("");
+  console.log("📱 WhatsApp → ⋮ → Aparelhos conectados → Conectar aparelho");
+  console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+}
+
 async function connectWhatsApp() {
   if (!fs.existsSync(AUTH_DIR)) {
     fs.mkdirSync(AUTH_DIR, { recursive: true });
@@ -30,7 +43,7 @@ async function connectWhatsApp() {
     version,
     auth: state,
     logger: pino({ level: "silent" }),
-    printQRInTerminal: false, // desativado — gerenciamos manualmente abaixo
+    printQRInTerminal: false,
     browser: ["Chrome (Linux)", "Chrome", "120.0.0"],
     connectTimeoutMs: 60000,
     retryRequestDelayMs: 2000,
@@ -41,14 +54,8 @@ async function connectWhatsApp() {
   sock.ev.on("connection.update", (update) => {
     const { connection, lastDisconnect, qr } = update;
 
-    // Imprime o QR manualmente nos logs do Railway
     if (qr) {
-      console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-      console.log("📱 [WhatsApp] Escaneie o QR Code abaixo:");
-      console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-      qrcode.generate(qr, { small: true });
-      console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-      console.log("📱 WhatsApp → ⋮ → Aparelhos conectados → Conectar aparelho");
+      printQRAsURL(qr);
     }
 
     if (connection === "open") {
@@ -57,7 +64,6 @@ async function connectWhatsApp() {
 
       setTimeout(async () => {
         try {
-          // Entra no grupo pelo código de convite se definido
           if (WA_GROUP_INVITE) {
             try {
               const groupId = await sock.groupAcceptInvite(WA_GROUP_INVITE);
@@ -72,7 +78,6 @@ async function connectWhatsApp() {
             }
           }
 
-          // Lista todos os grupos com ID
           const groups = await sock.groupFetchAllParticipating();
           const list = Object.values(groups);
           console.log(`📋 [WhatsApp] ${list.length} grupo(s) encontrado(s):`);
