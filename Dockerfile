@@ -6,5 +6,6 @@ COPY package*.json ./
 RUN npm install --only=production
 
 COPY . .
+RUN chmod +x run.sh
 
-CMD ["npm", "start"]
+ENTRYPOINT ["/bin/sh", "run.sh"]
