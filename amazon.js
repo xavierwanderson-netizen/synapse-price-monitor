@@ -12,19 +12,36 @@ let blockadeStart = 0;
 
 const BLOCKADE_WAIT_MS = 5 * 60 * 1000; // 5 minutos
 
+// ✅ CORREÇÃO 1: Autenticação totalmente refeita para o padrão V3 (LwA)
 async function getAccessToken() {
   if (cachedToken && Date.now() < tokenExpiry) return cachedToken;
+  
   const credentialId = process.env.AMAZON_CREDENTIAL_ID;
   const credentialSecret = process.env.AMAZON_CREDENTIAL_SECRET;
-  const authUrl = "https://creatorsapi.auth.us-west-2.amazoncognito.com/oauth2/token";
-  const auth = Buffer.from(`${credentialId}:${credentialSecret}`).toString("base64");
+  
+  // Endpoint de token V3 para região NA (Brasil/US)
+  const authUrl = "https://api.amazon.com/auth/o2/token";
 
-  const { data } = await axios.post(authUrl, "grant_type=client_credentials&scope=creatorsapi/default", {
-    headers: { "Content-Type": "application/x-www-form-urlencoded", "Authorization": `Basic ${auth}` }
-  });
-  cachedToken = data.access_token;
-  tokenExpiry = Date.now() + (data.expires_in * 1000) - 60000;
-  return cachedToken;
+  try {
+    const { data } = await axios.post(
+      authUrl,
+      {
+        grant_type: "client_credentials",
+        client_id: credentialId,
+        client_secret: credentialSecret,
+        scope: "creatorsapi::default" // Atenção aos dois pontos duplos (::) da V3
+      },
+      {
+        headers: { "Content-Type": "application/json" }
+      }
+    );
+    
+    cachedToken = data.access_token;
+    tokenExpiry = Date.now() + (data.expires_in * 1000) - 60000; // Margem de segurança de 1 minuto
+    return cachedToken;
+  } catch (error) {
+    throw new Error(`Falha ao obter token V3: ${error.response?.data?.error_description || error.message}`);
+  }
 }
 
 function extractPrice(html) {
@@ -94,12 +111,13 @@ export async function fetchAmazonProduct(asin) {
 
   const marketplace = process.env.AMAZON_MARKETPLACE || "www.amazon.com.br";
   const partnerTag = process.env.AMAZON_PARTNER_TAG;
-  const version = process.env.AMAZON_CREDENTIAL_VERSION || "3";
 
   try {
     const token = await getAccessToken();
+    
+    // ✅ CORREÇÃO 2: Chamada da API corrigida para a estrutura V3
     const { data } = await axios.post(
-      "https://creatorsapi.amazon/catalog/v1/getItems",
+      "https://creatorsapi.amazon.com/catalog/v1/getItems", // .com adicionado
       {
         itemIds: [asin],
         marketplace: marketplace,
@@ -108,8 +126,7 @@ export async function fetchAmazonProduct(asin) {
       },
       {
         headers: {
-          "Authorization": `Bearer ${token}`,
-          "x-api-version": version,
+          "Authorization": `Bearer ${token}`, // V3 usa Bearer puro, sem "Version x"
           "x-marketplace": marketplace,
           "Content-Type": "application/json"
         },
@@ -119,7 +136,7 @@ export async function fetchAmazonProduct(asin) {
 
     const item = data?.itemsResult?.items?.[0];
     if (item && item.offersV2?.listings?.[0]?.price) {
-      blockadeStart = 0; // Reset bloqueio
+      blockadeStart = 0; // Reset bloqueio em caso de sucesso
       return {
         id: `amazon_${asin}`,
         title: item.itemInfo.title.displayValue,
@@ -130,17 +147,24 @@ export async function fetchAmazonProduct(asin) {
         method: "api"
       };
     }
-    throw new Error("API não retornou oferta");
+    throw new Error("API não retornou oferta válida");
   } catch (error) {
-    // Se API falhar com 403, marcar início de bloqueio mas TENTAR SCRAPER como última chance
+    // Se API falhar com 403 (ou qualquer outro erro), tentar scraper como fallback
     if (error.response?.status === 403) {
+      blockadeStart = Date.now();
       console.warn("⚠️ Amazon API: IP bloqueado (403). Tentando Scraper como fallback...");
     } else {
       console.warn(`⚠️ Amazon API Falhou: ${error.message}. Tentando Scraper...`);
     }
 
     // Tentar scraper como fallback para QUALQUER erro da API
-    return await scrapeAmazonWithRetry(asin, marketplace, partnerTag);
+    try {
+      const scrapedData = await scrapeAmazonWithRetry(asin, marketplace, partnerTag);
+      if (scrapedData) blockadeStart = 0; // Se scraper der certo, remove restrição do IP
+      return scrapedData;
+    } catch (scraperError) {
+      throw new Error(`Falha Total Amazon: API (${error.message}) + Scraper (${scraperError.message})`);
+    }
   }
 }
 
@@ -171,7 +195,6 @@ async function scrapeAmazon(asin, marketplace, partnerTag) {
     timeout: 30000
   });
 
-  // Validar se resposta é bloqueio ou página de erro
   if (isBlockedOrErrorPage(data)) {
     blockadeStart = Date.now();
     throw new Error("Página de bloqueio detectada no scraper.");
@@ -182,9 +205,6 @@ async function scrapeAmazon(asin, marketplace, partnerTag) {
 
   const title = extractTitle(data);
   const image = extractImage(data);
-
-  // Se chegou aqui com sucesso, podemos resetar o blockadeStart
-  blockadeStart = 0;
 
   return {
     id: `amazon_${asin}`,
