@@ -89,12 +89,12 @@ export async function fetchAmazonProduct(asin) {
   // Se bloqueado, aguardar antes de tentar
   if (blockadeStart && Date.now() - blockadeStart < BLOCKADE_WAIT_MS) {
     const remaining = Math.round((BLOCKADE_WAIT_MS - (Date.now() - blockadeStart)) / 1000);
-    throw new Error(`Amazon bloqueada. Aguardando ${remaining}s antes de retry.`);
+    throw new Error(`Amazon em cooldown. Restam ${remaining}s.`);
   }
 
   const marketplace = process.env.AMAZON_MARKETPLACE || "www.amazon.com.br";
   const partnerTag = process.env.AMAZON_PARTNER_TAG;
-  const version = process.env.AMAZON_CREDENTIAL_VERSION || "3"; // v3 credentials compatível com SDK v1.2.0+
+  const version = process.env.AMAZON_CREDENTIAL_VERSION || "3";
 
   try {
     const token = await getAccessToken();
@@ -108,7 +108,8 @@ export async function fetchAmazonProduct(asin) {
       },
       {
         headers: {
-          "Authorization": `Bearer ${token}, Version ${version}`,
+          "Authorization": `Bearer ${token}`,
+          "x-api-version": version,
           "x-marketplace": marketplace,
           "Content-Type": "application/json"
         },
@@ -131,14 +132,14 @@ export async function fetchAmazonProduct(asin) {
     }
     throw new Error("API não retornou oferta");
   } catch (error) {
-    // Se API falhar com 403, marcar bloqueio
+    // Se API falhar com 403, marcar início de bloqueio mas TENTAR SCRAPER como última chance
     if (error.response?.status === 403) {
-      blockadeStart = Date.now();
-      console.warn("⚠️ Amazon: IP bloqueado (403). Aguardando 5 minutos.");
-      throw new Error("Amazon bloqueou o IP. Pulando scrapers até recuperação.");
+      console.warn("⚠️ Amazon API: IP bloqueado (403). Tentando Scraper como fallback...");
+    } else {
+      console.warn(`⚠️ Amazon API Falhou: ${error.message}. Tentando Scraper...`);
     }
 
-    // Tentar scraper como fallback
+    // Tentar scraper como fallback para QUALQUER erro da API
     return await scrapeAmazonWithRetry(asin, marketplace, partnerTag);
   }
 }
@@ -159,8 +160,13 @@ async function scrapeAmazon(asin, marketplace, partnerTag) {
   const { data } = await axios.get(url, {
     headers: {
       "User-Agent": getRandomUserAgent(),
-      "Accept-Language": "pt-BR,pt;q=0.9",
-      "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
+      "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+      "Accept-Language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7",
+      "Accept-Encoding": "gzip, deflate, br",
+      "Cache-Control": "no-cache",
+      "Pragma": "no-cache",
+      "Upgrade-Insecure-Requests": "1",
+      "Referer": `https://${marketplace}/`
     },
     timeout: 30000
   });
@@ -168,7 +174,7 @@ async function scrapeAmazon(asin, marketplace, partnerTag) {
   // Validar se resposta é bloqueio ou página de erro
   if (isBlockedOrErrorPage(data)) {
     blockadeStart = Date.now();
-    throw new Error("Página de bloqueio ou erro detectada");
+    throw new Error("Página de bloqueio detectada no scraper.");
   }
 
   const price = extractPrice(data);
@@ -176,6 +182,9 @@ async function scrapeAmazon(asin, marketplace, partnerTag) {
 
   const title = extractTitle(data);
   const image = extractImage(data);
+
+  // Se chegou aqui com sucesso, podemos resetar o blockadeStart
+  blockadeStart = 0;
 
   return {
     id: `amazon_${asin}`,
