@@ -1,4 +1,5 @@
 import axios from "axios";
+import fs from "fs";
 import {
   getLastPrice,
   setLastPrice,
@@ -8,6 +9,8 @@ import {
 
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID;
+const WA_GROUP_ID = process.env.WA_GROUP_ID;
+const WHATSAPP_JSON_PATH = "/.data/whatsapp.json";
 
 const DISCOUNT_THRESHOLD = parseInt(process.env.DISCOUNT_THRESHOLD_PERCENT || "12", 10);
 
@@ -80,6 +83,81 @@ async function sendTelegramText(text, url, attempt = 1) {
   }
 }
 
+async function sendWhatsAppMessage(message, attempt = 1) {
+  try {
+    const response = await axios.post(`https://graph.instagram.com/v18.0/${WA_GROUP_ID}/messages`, {
+      messaging_product: "whatsapp",
+      to: WA_GROUP_ID,
+      type: "text",
+      text: { body: message }
+    }, {
+      headers: {
+        "Authorization": `Bearer ${process.env.WHATSAPP_BUSINESS_ACCOUNT_TOKEN || process.env.WA_TOKEN}`,
+        "Content-Type": "application/json"
+      },
+      timeout: 10000
+    });
+
+    console.log(`✅ [WhatsApp] Mensagem enviada ao grupo.`);
+    updateWhatsAppStats();
+    return response.data;
+  } catch (error) {
+    if (attempt < 2) {
+      console.warn(`⚠️ WhatsApp falhou. Tentando novamente em 2s...`);
+      await new Promise(r => setTimeout(r, 2000));
+      return sendWhatsAppMessage(message, attempt + 1);
+    }
+    throw error;
+  }
+}
+
+function updateWhatsAppStats() {
+  try {
+    let stats = {
+      lastMessageTime: Date.now(),
+      messageCount: 0,
+      messagesLast24h: 0,
+      lastProductIds: [],
+      maxMessagesPerDay: 100
+    };
+
+    if (fs.existsSync(WHATSAPP_JSON_PATH)) {
+      const existing = JSON.parse(fs.readFileSync(WHATSAPP_JSON_PATH, "utf-8"));
+      stats = { ...existing, lastMessageTime: Date.now(), messageCount: (existing.messageCount || 0) + 1 };
+    }
+
+    const dir = "/.data";
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(WHATSAPP_JSON_PATH, JSON.stringify(stats, null, 2));
+  } catch (err) {
+    console.warn(`⚠️ Erro ao atualizar WhatsApp stats:`, err.message);
+  }
+}
+
+export function validateNotificationChannels() {
+  let channels = [];
+
+  if (TELEGRAM_BOT_TOKEN && TELEGRAM_CHAT_ID) {
+    console.log("✅ Telegram: Configurado");
+    channels.push("telegram");
+  } else {
+    console.warn("⚠️ Telegram: NÃO configurado");
+  }
+
+  if (WA_GROUP_ID && (process.env.WHATSAPP_BUSINESS_ACCOUNT_TOKEN || process.env.WA_TOKEN)) {
+    console.log("✅ WhatsApp: Configurado");
+    channels.push("whatsapp");
+  } else {
+    console.warn("⚠️ WhatsApp: NÃO configurado");
+  }
+
+  if (channels.length === 0) {
+    console.error("❌ NENHUM CANAL DE NOTIFICAÇÃO CONFIGURADO! Defina Telegram ou WhatsApp.");
+  }
+
+  return channels;
+}
+
 export async function notifyIfPriceDropped(product) {
   if (!product || !product.id || !product.price) return;
 
@@ -120,21 +198,42 @@ export async function notifyIfPriceDropped(product) {
 🏷️ Loja: <code>${product.platform.toUpperCase()}</code>
 ━━━━━━━━━━━━━━━━━━`;
 
-    try {
-      if (product.image && product.image.startsWith("http")) {
-        await sendTelegramPhoto(product.image, textMessage, product.url);
-      } else {
-        await sendTelegramText(textMessage, product.url);
-      }
-      await markNotified(product.id);
-    } catch (err) {
-      console.error("❌ Erro ao notificar Telegram, tentando fallback apenas texto.");
+    const whatsappMessage = textMessage.replace(/<[^>]*>/g, ''); // Remove HTML tags for WhatsApp
+
+    let notificationSent = false;
+
+    // Tentar Telegram com foto
+    if (TELEGRAM_BOT_TOKEN && TELEGRAM_CHAT_ID) {
       try {
-        await sendTelegramText(textMessage, product.url);
-        await markNotified(product.id);
-      } catch (err2) {
-        console.error("❌ Falha total no envio Telegram:", err2.message);
+        if (product.image && product.image.startsWith("http")) {
+          await sendTelegramPhoto(product.image, textMessage, product.url);
+        } else {
+          await sendTelegramText(textMessage, product.url);
+        }
+        notificationSent = true;
+      } catch (err) {
+        console.warn("⚠️ Erro ao notificar Telegram:", err.message);
+        try {
+          await sendTelegramText(textMessage, product.url);
+          notificationSent = true;
+        } catch (err2) {
+          console.error("❌ Falha total no envio Telegram:", err2.message);
+        }
       }
+    }
+
+    // Tentar WhatsApp como complemento ou fallback
+    if (WA_GROUP_ID && (process.env.WHATSAPP_BUSINESS_ACCOUNT_TOKEN || process.env.WA_TOKEN)) {
+      try {
+        await sendWhatsAppMessage(whatsappMessage);
+        notificationSent = true;
+      } catch (err) {
+        console.error("❌ Erro ao notificar WhatsApp:", err.message);
+      }
+    }
+
+    if (notificationSent) {
+      await markNotified(product.id);
     }
   }
 

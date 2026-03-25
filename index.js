@@ -3,7 +3,7 @@ import fs from "fs";
 import { fetchAmazonProduct } from "./amazon.js";
 import { fetchMLProduct } from "./mercadolivre.js";
 import { fetchShopeeProduct } from "./shopee.js";
-import { notifyIfPriceDropped } from "./notifier.js";
+import { notifyIfPriceDropped, validateNotificationChannels } from "./notifier.js";
 
 // ─── RESET TEMPORÁRIO DE TOKENS ML ───────────────────────────────────────────
 // Para usar: adicione RESET_ML_TOKENS=true nas variáveis do Railway e faça deploy.
@@ -138,6 +138,9 @@ async function checkOnce() {
 
 console.log("🟢 Monitor Synapse Iniciado");
 console.log(`⚙️ Configurações: Intervalo ${CHECK_INTERVAL_MINUTES}m | Delay Base ${REQUEST_DELAY_MS}ms | Backoff ${BACKOFF_BASE}ms`);
+
+// Validar canais de notificação
+validateNotificationChannels();
 
 checkOnce();
 setInterval(checkOnce, CHECK_INTERVAL_MINUTES * 60 * 1000);
