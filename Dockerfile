@@ -1,5 +1,8 @@
 FROM node:20-alpine
 
+# Instalar Git e outras dependências necessárias para Baileys
+RUN apk add --no-cache git python3 make g++
+
 WORKDIR /app
 
 COPY package*.json ./
