@@ -1,5 +1,6 @@
 import axios from "axios";
 import * as cheerio from "cheerio";
+import { HttpsProxyAgent } from 'https-proxy-agent';
 import {
   retryWithBackoff,
   isBlockedOrErrorPage,
@@ -12,32 +13,39 @@ let blockadeStart = 0;
 
 const BLOCKADE_WAIT_MS = 5 * 60 * 1000; // 5 minutos
 
-// ✅ CORREÇÃO 1: Autenticação totalmente refeita para o padrão V3 (LwA)
+// Configuração do Agente de Proxy (só cria se a variável existir)
+const proxyUrl = process.env.PROXY_URL;
+const proxyAgent = proxyUrl ? new HttpsProxyAgent(proxyUrl) : null;
+
 async function getAccessToken() {
   if (cachedToken && Date.now() < tokenExpiry) return cachedToken;
   
   const credentialId = process.env.AMAZON_CREDENTIAL_ID;
   const credentialSecret = process.env.AMAZON_CREDENTIAL_SECRET;
   
-  // Endpoint de token V3 para região NA (Brasil/US)
   const authUrl = "https://api.amazon.com/auth/o2/token";
 
   try {
+    const requestConfig = {
+      headers: { "Content-Type": "application/json" }
+    };
+    
+    // Injeta o proxy na requisição de token, se configurado
+    if (proxyAgent) requestConfig.httpsAgent = proxyAgent;
+
     const { data } = await axios.post(
       authUrl,
       {
         grant_type: "client_credentials",
         client_id: credentialId,
         client_secret: credentialSecret,
-        scope: "creatorsapi::default" // Atenção aos dois pontos duplos (::) da V3
+        scope: "creatorsapi::default" 
       },
-      {
-        headers: { "Content-Type": "application/json" }
-      }
+      requestConfig
     );
     
     cachedToken = data.access_token;
-    tokenExpiry = Date.now() + (data.expires_in * 1000) - 60000; // Margem de segurança de 1 minuto
+    tokenExpiry = Date.now() + (data.expires_in * 1000) - 60000; 
     return cachedToken;
   } catch (error) {
     throw new Error(`Falha ao obter token V3: ${error.response?.data?.error_description || error.message}`);
@@ -47,7 +55,6 @@ async function getAccessToken() {
 function extractPrice(html) {
   const $ = cheerio.load(html);
 
-  // Tentar múltiplos seletores para preço inteiro
   let whole = $(".a-price-whole").first().text().replace(/[^\d]/g, "");
   if (!whole) {
     whole = $("[data-a-price-whole]").first().attr("data-a-price-whole")?.replace(/[^\d]/g, "") || "";
@@ -59,7 +66,6 @@ function extractPrice(html) {
       .match(/\d+/)?.[0] || "";
   }
 
-  // Tentar múltiplos seletores para fração (centavos)
   let fraction = $(".a-price-fraction").first().text().replace(/[^\d]/g, "") || "00";
   if (fraction === "00") {
     fraction = $("[data-a-price-fraction]").first().attr("data-a-price-fraction")?.replace(/[^\d]/g, "") || "00";
@@ -72,7 +78,6 @@ function extractPrice(html) {
 function extractTitle(html) {
   const $ = cheerio.load(html);
 
-  // Tentar múltiplos seletores para título
   let title = $("#productTitle").text().trim();
   if (!title) {
     title = $("h1 .product-title").text().trim();
@@ -90,7 +95,6 @@ function extractTitle(html) {
 function extractImage(html) {
   const $ = cheerio.load(html);
 
-  // Tentar múltiplos seletores para imagem
   let image = $("#landingImage").attr("src");
   if (!image) {
     image = $("img.a-dynamic-image").first().attr("src");
@@ -103,7 +107,6 @@ function extractImage(html) {
 }
 
 export async function fetchAmazonProduct(asin) {
-  // Se bloqueado, aguardar antes de tentar
   if (blockadeStart && Date.now() - blockadeStart < BLOCKADE_WAIT_MS) {
     const remaining = Math.round((BLOCKADE_WAIT_MS - (Date.now() - blockadeStart)) / 1000);
     throw new Error(`Amazon em cooldown. Restam ${remaining}s.`);
@@ -115,28 +118,32 @@ export async function fetchAmazonProduct(asin) {
   try {
     const token = await getAccessToken();
     
-    // ✅ CORREÇÃO 2: Chamada da API corrigida para a estrutura V3
+    const requestConfig = {
+        headers: {
+          "Authorization": `Bearer ${token}`, 
+          "x-marketplace": marketplace,
+          "Content-Type": "application/json"
+        },
+        timeout: 20000
+    };
+
+    // Injeta o proxy na chamada da API Creators, se configurado
+    if (proxyAgent) requestConfig.httpsAgent = proxyAgent;
+
     const { data } = await axios.post(
-      "https://creatorsapi.amazon.com/catalog/v1/getItems", // .com adicionado
+      "https://creatorsapi.amazon.com/catalog/v1/getItems", 
       {
         itemIds: [asin],
         marketplace: marketplace,
         partnerTag: partnerTag,
         resources: ["itemInfo.title", "images.primary.small", "offersV2.listings.price"]
       },
-      {
-        headers: {
-          "Authorization": `Bearer ${token}`, // V3 usa Bearer puro, sem "Version x"
-          "x-marketplace": marketplace,
-          "Content-Type": "application/json"
-        },
-        timeout: 20000
-      }
+      requestConfig
     );
 
     const item = data?.itemsResult?.items?.[0];
     if (item && item.offersV2?.listings?.[0]?.price) {
-      blockadeStart = 0; // Reset bloqueio em caso de sucesso
+      blockadeStart = 0; 
       return {
         id: `amazon_${asin}`,
         title: item.itemInfo.title.displayValue,
@@ -149,7 +156,6 @@ export async function fetchAmazonProduct(asin) {
     }
     throw new Error("API não retornou oferta válida");
   } catch (error) {
-    // Se API falhar com 403 (ou qualquer outro erro), tentar scraper como fallback
     if (error.response?.status === 403) {
       blockadeStart = Date.now();
       console.warn("⚠️ Amazon API: IP bloqueado (403). Tentando Scraper como fallback...");
@@ -157,10 +163,9 @@ export async function fetchAmazonProduct(asin) {
       console.warn(`⚠️ Amazon API Falhou: ${error.message}. Tentando Scraper...`);
     }
 
-    // Tentar scraper como fallback para QUALQUER erro da API
     try {
       const scrapedData = await scrapeAmazonWithRetry(asin, marketplace, partnerTag);
-      if (scrapedData) blockadeStart = 0; // Se scraper der certo, remove restrição do IP
+      if (scrapedData) blockadeStart = 0; 
       return scrapedData;
     } catch (scraperError) {
       throw new Error(`Falha Total Amazon: API (${error.message}) + Scraper (${scraperError.message})`);
@@ -181,7 +186,7 @@ async function scrapeAmazonWithRetry(asin, marketplace, partnerTag) {
 async function scrapeAmazon(asin, marketplace, partnerTag) {
   const url = `https://${marketplace}/dp/${asin}?tag=${partnerTag}`;
 
-  const { data } = await axios.get(url, {
+  const requestConfig = {
     headers: {
       "User-Agent": getRandomUserAgent(),
       "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
@@ -193,7 +198,12 @@ async function scrapeAmazon(asin, marketplace, partnerTag) {
       "Referer": `https://${marketplace}/`
     },
     timeout: 30000
-  });
+  };
+
+  // Injeta o proxy no scraper HTML, se configurado
+  if (proxyAgent) requestConfig.httpsAgent = proxyAgent;
+
+  const { data } = await axios.get(url, requestConfig);
 
   if (isBlockedOrErrorPage(data)) {
     blockadeStart = Date.now();
