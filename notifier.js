@@ -1,18 +1,61 @@
 import axios from "axios";
-import fs from "fs";
 import {
   getLastPrice,
   setLastPrice,
   isCooldownActive,
   markNotified
 } from "./store.js";
+import { sendWhatsAppMessage } from "./whatsapp.js";
 
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID;
-const WA_GROUP_ID = process.env.WA_GROUP_ID;
-const WHATSAPP_JSON_PATH = "/.data/whatsapp.json";
 
 const DISCOUNT_THRESHOLD = parseInt(process.env.DISCOUNT_THRESHOLD_PERCENT || "12", 10);
+
+// ─── A/B TEST (IMPULSO) ──────────────────────────────────────────────────────
+function getPriceCallToAction() {
+  return Math.random() < 0.5 ? "💸 Só hoje:" : "🔥 Agora por:";
+}
+
+// ─── TIME CONTROL ────────────────────────────────────────────────────────────
+
+function isNotificationPauseTime() {
+  const now = new Date();
+  const hours = now.getHours();
+  const minutes = now.getMinutes();
+  const totalMinutes = hours * 60 + minutes;
+  const pauseStartMinutes = 23 * 60 + 30;
+  const pauseEndMinutes = 8 * 60 + 30;
+  return totalMinutes >= pauseStartMinutes || totalMinutes < pauseEndMinutes;
+}
+
+function getNotificationWindowInfo() {
+  const now = new Date();
+  const hours = now.getHours();
+  const minutes = now.getMinutes();
+  const totalMinutes = hours * 60 + minutes;
+  const pauseStartMinutes = 23 * 60 + 30;
+  const pauseEndMinutes = 8 * 60 + 30;
+
+  if (totalMinutes >= pauseStartMinutes) {
+    const minutesUntilResume = (24 * 60 - totalMinutes) + pauseEndMinutes;
+    const resumeTime = new Date(now.getTime() + minutesUntilResume * 60000).toLocaleTimeString('pt-BR');
+    return { isPaused: true, minutesUntilResume, resumeTime };
+  } else if (totalMinutes < pauseEndMinutes) {
+    const minutesUntilResume = pauseEndMinutes - totalMinutes;
+    const resumeTime = new Date(now.getTime() + minutesUntilResume * 60000).toLocaleTimeString('pt-BR');
+    return { isPaused: true, minutesUntilResume, resumeTime };
+  } else {
+    const minutesUntilPause = pauseStartMinutes - totalMinutes;
+    return {
+      isPaused: false,
+      minutesUntilPause,
+      pauseStartsAt: new Date(now.getTime() + minutesUntilPause * 60000).toLocaleTimeString('pt-BR')
+    };
+  }
+}
+
+// ─── HELPERS ─────────────────────────────────────────────────────────────────
 
 function escapeHtml(text) {
   if (!text) return "";
@@ -23,143 +66,92 @@ function escapeHtml(text) {
 }
 
 function formatCurrency(value) {
-  return value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return value.toLocaleString('pt-BR', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  });
 }
 
 function getOfferLevel(oldPrice, newPrice) {
   const discount = ((oldPrice - newPrice) / oldPrice) * 100;
+
   if (discount >= 40) return { label: "💥 PREÇO EXPLODIU (IMPERDÍVEL)", icon: "🧨", discount };
   if (discount >= 25) return { label: "🚨 SUPER OFERTA DETECTADA", icon: "⭐", discount };
   if (discount >= DISCOUNT_THRESHOLD) return { label: "🔥 BOA OFERTA", icon: "✅", discount };
+
   return { label: "📉 QUEDA DE PREÇO", icon: "🏷️", discount };
 }
 
-// Botão inline clicável — converte muito mais que link no texto
+// ─── TELEGRAM ────────────────────────────────────────────────────────────────
+
 const inlineKeyboard = (url) => ({
-  inline_keyboard: [[
-    { text: "🛒 COMPRAR AGORA", url }
-  ]]
+  inline_keyboard: [[{ text: "🛒 COMPRAR AGORA", url }]]
 });
 
-async function sendTelegramPhoto(image, caption, url, attempt = 1) {
-  try {
-    await axios.post(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendPhoto`, {
-      chat_id: TELEGRAM_CHAT_ID,
-      photo: image,
-      caption,
-      parse_mode: "HTML",
-      reply_markup: inlineKeyboard(url)
-    }, {
-      timeout: 10000
-    });
-  } catch (error) {
-    if (attempt < 2) {
-      console.warn(`⚠️ Telegram Photo falhou. Tentando novamente em 2s...`);
-      await new Promise(r => setTimeout(r, 2000));
-      return sendTelegramPhoto(image, caption, url, attempt + 1);
-    }
-    throw error;
-  }
+async function sendTelegramPhoto(image, caption, url) {
+  await axios.post(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendPhoto`, {
+    chat_id: TELEGRAM_CHAT_ID,
+    photo: image,
+    caption,
+    parse_mode: "HTML",
+    reply_markup: inlineKeyboard(url)
+  });
 }
 
-async function sendTelegramText(text, url, attempt = 1) {
-  try {
-    await axios.post(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
-      chat_id: TELEGRAM_CHAT_ID,
-      text,
-      parse_mode: "HTML",
-      disable_web_page_preview: false,
-      reply_markup: inlineKeyboard(url)
-    }, {
-      timeout: 10000
-    });
-  } catch (error) {
-    if (attempt < 2) {
-      console.warn(`⚠️ Telegram Text falhou. Tentando novamente em 2s...`);
-      await new Promise(r => setTimeout(r, 2000));
-      return sendTelegramText(text, url, attempt + 1);
-    }
-    throw error;
-  }
+async function sendTelegramText(text, url) {
+  await axios.post(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
+    chat_id: TELEGRAM_CHAT_ID,
+    text,
+    parse_mode: "HTML",
+    disable_web_page_preview: false,
+    reply_markup: inlineKeyboard(url)
+  });
 }
 
-async function sendWhatsAppMessage(message, attempt = 1) {
-  try {
-    const response = await axios.post(`https://graph.instagram.com/v18.0/${WA_GROUP_ID}/messages`, {
-      messaging_product: "whatsapp",
-      to: WA_GROUP_ID,
-      type: "text",
-      text: { body: message }
-    }, {
-      headers: {
-        "Authorization": `Bearer ${process.env.WHATSAPP_BUSINESS_ACCOUNT_TOKEN || process.env.WA_TOKEN}`,
-        "Content-Type": "application/json"
-      },
-      timeout: 10000
-    });
+// ─── MENSAGENS ───────────────────────────────────────────────────────────────
 
-    console.log(`✅ [WhatsApp] Mensagem enviada ao grupo.`);
-    updateWhatsAppStats();
-    return response.data;
-  } catch (error) {
-    if (attempt < 2) {
-      console.warn(`⚠️ WhatsApp falhou. Tentando novamente em 2s...`);
-      await new Promise(r => setTimeout(r, 2000));
-      return sendWhatsAppMessage(message, attempt + 1);
-    }
-    throw error;
-  }
+function buildTelegramMessage(product, label, icon, discount, lastPrice) {
+  const cta = getPriceCallToAction();
+
+  return `${icon} <b>${label}</b> ${icon}
+━━━━━━━━━━━━━━━━━━
+📦 <b>${escapeHtml(product.title)}</b>
+
+❌ De: <s>R$ ${formatCurrency(lastPrice)}</s>
+${cta} <b>R$ ${formatCurrency(product.price)}</b>
+
+📉 Desconto: <b>${discount.toFixed(0)}% OFF</b>
+🏷️ Loja: <code>${product.platform.toUpperCase()}</code>
+━━━━━━━━━━━━━━━━━━`;
 }
 
-function updateWhatsAppStats() {
-  try {
-    let stats = {
-      lastMessageTime: Date.now(),
-      messageCount: 0,
-      messagesLast24h: 0,
-      lastProductIds: [],
-      maxMessagesPerDay: 100
-    };
+function buildWhatsAppMessage(product, label, icon, discount, lastPrice) {
+  const cta = getPriceCallToAction();
 
-    if (fs.existsSync(WHATSAPP_JSON_PATH)) {
-      const existing = JSON.parse(fs.readFileSync(WHATSAPP_JSON_PATH, "utf-8"));
-      stats = { ...existing, lastMessageTime: Date.now(), messageCount: (existing.messageCount || 0) + 1 };
-    }
+  return `${icon} *${label}* ${icon}
+━━━━━━━━━━━━━━━━━━
+📦 *${product.title}*
 
-    const dir = "/.data";
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-    fs.writeFileSync(WHATSAPP_JSON_PATH, JSON.stringify(stats, null, 2));
-  } catch (err) {
-    console.warn(`⚠️ Erro ao atualizar WhatsApp stats:`, err.message);
-  }
+❌ De: ~R$ ${formatCurrency(lastPrice)}~
+${cta} *R$ ${formatCurrency(product.price)}*
+
+📉 Desconto: *${discount.toFixed(0)}% OFF*
+🏷️ Loja: ${product.platform.toUpperCase()}
+
+🛒 *COMPRAR AGORA:*
+${product.url}
+━━━━━━━━━━━━━━━━━━`;
 }
 
-export function validateNotificationChannels() {
-  let channels = [];
-
-  if (TELEGRAM_BOT_TOKEN && TELEGRAM_CHAT_ID) {
-    console.log("✅ Telegram: Configurado");
-    channels.push("telegram");
-  } else {
-    console.warn("⚠️ Telegram: NÃO configurado");
-  }
-
-  if (WA_GROUP_ID && (process.env.WHATSAPP_BUSINESS_ACCOUNT_TOKEN || process.env.WA_TOKEN)) {
-    console.log("✅ WhatsApp: Configurado");
-    channels.push("whatsapp");
-  } else {
-    console.warn("⚠️ WhatsApp: NÃO configurado");
-  }
-
-  if (channels.length === 0) {
-    console.error("❌ NENHUM CANAL DE NOTIFICAÇÃO CONFIGURADO! Defina Telegram ou WhatsApp.");
-  }
-
-  return channels;
-}
+// ─── NOTIFICAÇÃO PRINCIPAL ───────────────────────────────────────────────────
 
 export async function notifyIfPriceDropped(product) {
   if (!product || !product.id || !product.price) return;
+
+  if (product.price < 1.0) {
+    console.warn(`⚠️ Preço suspeito ignorado para ${product.id}: R$ ${product.price}`);
+    return;
+  }
 
   const lastPrice = await getLastPrice(product.id);
 
@@ -178,64 +170,63 @@ export async function notifyIfPriceDropped(product) {
 
     const cooldown = await isCooldownActive(product.id);
     if (cooldown) {
-      await setLastPrice(product.id, product.price); // atualiza preço mesmo em cooldown
+      await setLastPrice(product.id, product.price);
+      return;
+    }
+
+    if (isNotificationPauseTime()) {
+      const windowInfo = getNotificationWindowInfo();
+      console.log(`⏸️ Pausado até ${windowInfo.resumeTime}`);
+      await setLastPrice(product.id, product.price);
       return;
     }
 
     const { label, icon, discount } = getOfferLevel(lastPrice, product.price);
-    const savings = lastPrice - product.price;
 
-    const textMessage =
-`${icon} <b>${label}</b> ${icon}
-━━━━━━━━━━━━━━━━━━
-📦 <b>${escapeHtml(product.title)}</b>
+    const telegramMsg = buildTelegramMessage(product, label, icon, discount, lastPrice);
+    const whatsappMsg = buildWhatsAppMessage(product, label, icon, discount, lastPrice);
 
-❌ De: <s>R$ ${formatCurrency(lastPrice)}</s>
-✅ Por: <b>R$ ${formatCurrency(product.price)}</b>
+    const hasImage = product.image && product.image.startsWith("http");
 
-💰 <b>Economia de: R$ ${formatCurrency(savings)}</b>
-📉 Desconto: <b>${discount.toFixed(0)}% OFF</b>
-🏷️ Loja: <code>${product.platform.toUpperCase()}</code>
-━━━━━━━━━━━━━━━━━━`;
-
-    const whatsappMessage = textMessage.replace(/<[^>]*>/g, ''); // Remove HTML tags for WhatsApp
-
-    let notificationSent = false;
-
-    // Tentar Telegram com foto
-    if (TELEGRAM_BOT_TOKEN && TELEGRAM_CHAT_ID) {
-      try {
-        if (product.image && product.image.startsWith("http")) {
-          await sendTelegramPhoto(product.image, textMessage, product.url);
-        } else {
-          await sendTelegramText(textMessage, product.url);
-        }
-        notificationSent = true;
-      } catch (err) {
-        console.warn("⚠️ Erro ao notificar Telegram:", err.message);
-        try {
-          await sendTelegramText(textMessage, product.url);
-          notificationSent = true;
-        } catch (err2) {
-          console.error("❌ Falha total no envio Telegram:", err2.message);
-        }
+    // Telegram
+    try {
+      if (hasImage) {
+        await sendTelegramPhoto(product.image, telegramMsg, product.url);
+      } else {
+        await sendTelegramText(telegramMsg, product.url);
       }
-    }
-
-    // Tentar WhatsApp como complemento ou fallback
-    if (WA_GROUP_ID && (process.env.WHATSAPP_BUSINESS_ACCOUNT_TOKEN || process.env.WA_TOKEN)) {
-      try {
-        await sendWhatsAppMessage(whatsappMessage);
-        notificationSent = true;
-      } catch (err) {
-        console.error("❌ Erro ao notificar WhatsApp:", err.message);
-      }
-    }
-
-    if (notificationSent) {
       await markNotified(product.id);
+    } catch (err) {
+      console.error("Erro Telegram, fallback...");
+      try {
+        await sendTelegramText(telegramMsg, product.url);
+        await markNotified(product.id);
+      } catch (err2) {
+        console.error("Falha total Telegram:", err2.message);
+      }
+    }
+
+    // WhatsApp
+    try {
+      await sendWhatsAppMessage(whatsappMsg, hasImage ? product.image : null);
+    } catch (err) {
+      console.error("Falha WhatsApp:", err.message);
     }
   }
 
   await setLastPrice(product.id, product.price);
+}
+
+// ─── DEBUG ───────────────────────────────────────────────────────────────────
+
+export function debugNotificationWindow() {
+  const info = getNotificationWindowInfo();
+
+  if (info.isPaused) {
+    console.log(`⏸️ PAUSADO até ${info.resumeTime}`);
+  } else {
+    console.log(`✅ ATIVO até ${info.pauseStartsAt}`);
+  }
+
+  return info;
 }
