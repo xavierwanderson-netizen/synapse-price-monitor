@@ -94,7 +94,7 @@ export async function fetchAmazonProduct(asin) {
 
   const marketplace = process.env.AMAZON_MARKETPLACE || "www.amazon.com.br";
   const partnerTag = process.env.AMAZON_PARTNER_TAG;
-  const version = process.env.AMAZON_CREDENTIAL_VERSION || "2.1";
+  const version = process.env.AMAZON_CREDENTIAL_VERSION || "3"; // v3 credentials compatível com SDK v1.2.0+
 
   try {
     const token = await getAccessToken();
