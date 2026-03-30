@@ -1,6 +1,5 @@
 import axios from "axios";
 import * as cheerio from "cheerio";
-import { HttpsProxyAgent } from 'https-proxy-agent';
 import {
   retryWithBackoff,
   isBlockedOrErrorPage,
@@ -13,48 +12,53 @@ let blockadeStart = 0;
 
 const BLOCKADE_WAIT_MS = 5 * 60 * 1000; // 5 minutos
 
-// Configuração do Agente de Proxy (só cria se a variável existir)
-const proxyUrl = process.env.PROXY_URL;
-const proxyAgent = proxyUrl ? new HttpsProxyAgent(proxyUrl) : null;
-
+// ✅ V3.1 LWA (Login with Amazon) - CORRETO PARA SUAS CREDENCIAIS
 async function getAccessToken() {
+  // Retorna token em cache se ainda válido
   if (cachedToken && Date.now() < tokenExpiry) return cachedToken;
   
-  const credentialId = process.env.AMAZON_CREDENTIAL_ID;
-  const credentialSecret = process.env.AMAZON_CREDENTIAL_SECRET;
+  const clientId = process.env.AMAZON_CREDENTIAL_ID;
+  const clientSecret = process.env.AMAZON_CREDENTIAL_SECRET;
   
+  if (!clientId || !clientSecret) {
+    throw new Error("❌ AMAZON_CREDENTIAL_ID ou AMAZON_CREDENTIAL_SECRET não configurados no Railway");
+  }
+
+  // ✅ ENDPOINT CORRETO PARA V3.1: api.amazon.com (não amazoncognito)
   const authUrl = "https://api.amazon.com/auth/o2/token";
+  
+  // ✅ FORMATO CORRETO: URLSearchParams com scope creatorsapi::default (:: não /)
+  const params = new URLSearchParams({
+    grant_type: "client_credentials",
+    client_id: clientId,
+    client_secret: clientSecret,
+    scope: "creatorsapi::default"  // ✅ :: (dois-pontos-duplos)
+  });
 
   try {
-    const requestConfig = {
-      headers: { "Content-Type": "application/json" }
-    };
-    
-    // Injeta o proxy na requisição de token, se configurado
-    if (proxyAgent) requestConfig.httpsAgent = proxyAgent;
-
-    const { data } = await axios.post(
-      authUrl,
-      {
-        grant_type: "client_credentials",
-        client_id: credentialId,
-        client_secret: credentialSecret,
-        scope: "creatorsapi::default" 
+    const { data } = await axios.post(authUrl, params.toString(), {
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded"
       },
-      requestConfig
-    );
-    
+      timeout: 15000
+    });
+
     cachedToken = data.access_token;
-    tokenExpiry = Date.now() + (data.expires_in * 1000) - 60000; 
+    // Token expires_in é em segundos, converte para ms com 1 min de margem
+    tokenExpiry = Date.now() + (data.expires_in * 1000) - 60000;
+    
     return cachedToken;
   } catch (error) {
-    throw new Error(`Falha ao obter token V3: ${error.response?.data?.error_description || error.message}`);
+    const errorMsg = error.response?.data?.error_description || error.response?.data?.error || error.message;
+    console.error(`❌ Erro na autenticação V3.1: ${errorMsg}`);
+    throw new Error(`Falha na autenticação Amazon V3.1: ${errorMsg}`);
   }
 }
 
 function extractPrice(html) {
   const $ = cheerio.load(html);
 
+  // Tentar múltiplos seletores para preço inteiro
   let whole = $(".a-price-whole").first().text().replace(/[^\d]/g, "");
   if (!whole) {
     whole = $("[data-a-price-whole]").first().attr("data-a-price-whole")?.replace(/[^\d]/g, "") || "";
@@ -66,6 +70,7 @@ function extractPrice(html) {
       .match(/\d+/)?.[0] || "";
   }
 
+  // Tentar múltiplos seletores para fração (centavos)
   let fraction = $(".a-price-fraction").first().text().replace(/[^\d]/g, "") || "00";
   if (fraction === "00") {
     fraction = $("[data-a-price-fraction]").first().attr("data-a-price-fraction")?.replace(/[^\d]/g, "") || "00";
@@ -78,6 +83,7 @@ function extractPrice(html) {
 function extractTitle(html) {
   const $ = cheerio.load(html);
 
+  // Tentar múltiplos seletores para título
   let title = $("#productTitle").text().trim();
   if (!title) {
     title = $("h1 .product-title").text().trim();
@@ -95,6 +101,7 @@ function extractTitle(html) {
 function extractImage(html) {
   const $ = cheerio.load(html);
 
+  // Tentar múltiplos seletores para imagem
   let image = $("#landingImage").attr("src");
   if (!image) {
     image = $("img.a-dynamic-image").first().attr("src");
@@ -107,6 +114,7 @@ function extractImage(html) {
 }
 
 export async function fetchAmazonProduct(asin) {
+  // Se bloqueado, aguardar antes de tentar
   if (blockadeStart && Date.now() - blockadeStart < BLOCKADE_WAIT_MS) {
     const remaining = Math.round((BLOCKADE_WAIT_MS - (Date.now() - blockadeStart)) / 1000);
     throw new Error(`Amazon em cooldown. Restam ${remaining}s.`);
@@ -115,35 +123,42 @@ export async function fetchAmazonProduct(asin) {
   const marketplace = process.env.AMAZON_MARKETPLACE || "www.amazon.com.br";
   const partnerTag = process.env.AMAZON_PARTNER_TAG;
 
+  if (!partnerTag) {
+    throw new Error("❌ AMAZON_PARTNER_TAG não configurado");
+  }
+
   try {
     const token = await getAccessToken();
     
-    const requestConfig = {
-        headers: {
-          "Authorization": `Bearer ${token}`, 
-          "x-marketplace": marketplace,
-          "Content-Type": "application/json"
-        },
-        timeout: 20000
-    };
-
-    // Injeta o proxy na chamada da API Creators, se configurado
-    if (proxyAgent) requestConfig.httpsAgent = proxyAgent;
-
+    // ✅ URL CORRIGIDA PARA V3.1: creatorsapi.amazon.com (com .com no final)
+    const apiUrl = "https://creatorsapi.amazon.com/catalog/v1/getItems";
+    
     const { data } = await axios.post(
-      "https://creatorsapi.amazon.com/catalog/v1/getItems", 
+      apiUrl,
       {
         itemIds: [asin],
         marketplace: marketplace,
         partnerTag: partnerTag,
-        resources: ["itemInfo.title", "images.primary.small", "offersV2.listings.price"]
+        resources: [
+          "itemInfo.title",
+          "images.primary.small",
+          "offersV2.listings.price"
+        ]
       },
-      requestConfig
+      {
+        headers: {
+          // ✅ HEADER CORRETO V3.1: Bearer token APENAS (SEM versão no header)
+          "Authorization": `Bearer ${token}`,
+          "x-marketplace": marketplace,
+          "Content-Type": "application/json"
+        },
+        timeout: parseInt(process.env.AMAZON_TIMEOUT_MS || "30000", 10)
+      }
     );
 
     const item = data?.itemsResult?.items?.[0];
-    if (item && item.offersV2?.listings?.[0]?.price) {
-      blockadeStart = 0; 
+    if (item && item.itemInfo?.title && item.offersV2?.listings?.[0]?.price) {
+      blockadeStart = 0; // Reset cooldown ao sucesso
       return {
         id: `amazon_${asin}`,
         title: item.itemInfo.title.displayValue,
@@ -151,34 +166,55 @@ export async function fetchAmazonProduct(asin) {
         url: `https://${marketplace}/dp/${asin}?tag=${partnerTag}`,
         image: item.images?.primary?.small?.url || null,
         platform: "amazon",
-        method: "api"
+        method: "api",
+        apiVersion: "v3.1"
       };
     }
-    throw new Error("API não retornou oferta válida");
+    
+    // Item não tem preço (out of stock, erro, etc)
+    throw new Error("API não retornou oferta válida (item.offersV2 vazio ou sem preço)");
+    
   } catch (error) {
-    if (error.response?.status === 403) {
+    const statusCode = error.response?.status;
+    const errorData = error.response?.data;
+    
+    // Tratamento específico para erros da API
+    if (statusCode === 401) {
+      console.error("❌ HTTP 401: Credenciais V3.1 inválidas ou expiradas");
+      throw new Error("Autenticação falhou: verifique AMAZON_CREDENTIAL_ID/SECRET no Railway");
+    }
+    
+    if (statusCode === 403) {
+      const errorCode = errorData?.Errors?.[0]?.Code;
+      
+      if (errorCode === "AssociateNotEligible") {
+        console.warn("⚠️ HTTP 403: AssociateNotEligible - Você precisa de 10 vendas em 30 dias");
+        throw new Error("Amazon: Sua conta não tem 10 vendas qualificadas em 30 dias (elegibilidade)");
+      }
+      
+      // IP bloqueado
       blockadeStart = Date.now();
-      console.warn("⚠️ Amazon API: IP bloqueado (403). Tentando Scraper como fallback...");
-    } else {
-      console.warn(`⚠️ Amazon API Falhou: ${error.message}. Tentando Scraper...`);
+      console.warn("⚠️ HTTP 403: IP bloqueado pela Amazon. Cooldown de 5 minutos ativado");
+      throw new Error("Amazon bloqueou o IP. Tentando scraper como fallback...");
     }
-
-    try {
-      const scrapedData = await scrapeAmazonWithRetry(asin, marketplace, partnerTag);
-      if (scrapedData) blockadeStart = 0; 
-      return scrapedData;
-    } catch (scraperError) {
-      throw new Error(`Falha Total Amazon: API (${error.message}) + Scraper (${scraperError.message})`);
+    
+    if (statusCode === 400) {
+      const errorCode = errorData?.Errors?.[0]?.Code;
+      console.warn(`⚠️ HTTP 400: ${errorCode} - Verificar parâmetros da requisição`);
     }
+    
+    // Qualquer outro erro: tentar scraper como fallback
+    console.warn(`⚠️ Amazon API Falhou (${statusCode || 'erro desconhecido'}): ${error.message}. Tentando Scraper...`);
+    return await scrapeAmazonWithRetry(asin, marketplace, partnerTag);
   }
 }
 
 async function scrapeAmazonWithRetry(asin, marketplace, partnerTag) {
   return retryWithBackoff(
     () => scrapeAmazon(asin, marketplace, partnerTag),
-    3,
-    2000,
-    20000,
+    parseInt(process.env.AMAZON_MAX_RETRIES || "3", 10),
+    parseInt(process.env.AMAZON_BACKOFF_BASE_MS || "1500", 10),
+    parseInt(process.env.AMAZON_TIMEOUT_MS || "30000", 10),
     `Amazon Scraper (${asin})`
   );
 }
@@ -186,32 +222,23 @@ async function scrapeAmazonWithRetry(asin, marketplace, partnerTag) {
 async function scrapeAmazon(asin, marketplace, partnerTag) {
   const url = `https://${marketplace}/dp/${asin}?tag=${partnerTag}`;
 
-  const requestConfig = {
+  const { data } = await axios.get(url, {
     headers: {
       "User-Agent": getRandomUserAgent(),
-      "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
       "Accept-Language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7",
-      "Accept-Encoding": "gzip, deflate, br",
-      "Cache-Control": "no-cache",
-      "Pragma": "no-cache",
-      "Upgrade-Insecure-Requests": "1",
-      "Referer": `https://${marketplace}/`
+      "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7"
     },
-    timeout: 30000
-  };
+    timeout: parseInt(process.env.AMAZON_TIMEOUT_MS || "30000", 10)
+  });
 
-  // Injeta o proxy no scraper HTML, se configurado
-  if (proxyAgent) requestConfig.httpsAgent = proxyAgent;
-
-  const { data } = await axios.get(url, requestConfig);
-
+  // Validar se resposta é bloqueio ou página de erro
   if (isBlockedOrErrorPage(data)) {
     blockadeStart = Date.now();
-    throw new Error("Página de bloqueio detectada no scraper.");
+    throw new Error("Página de bloqueio detectada no scraper");
   }
 
   const price = extractPrice(data);
-  if (!price) return null;
+  if (!price) return null; // Produto sem preço (out of stock, etc)
 
   const title = extractTitle(data);
   const image = extractImage(data);
