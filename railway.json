@@ -3,11 +3,5 @@
   "build": {
     "builder": "dockerfile",
     "dockerfilePath": "./Dockerfile"
-  },
-  "deploy": {
-    "startCommand": "node index.js",
-    "restartPolicy": "always",
-    "numReplicas": 1
-  },
-  "runtime": "node"
+  }
 }
