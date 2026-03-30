@@ -11,12 +11,15 @@ import { getLastPrice } from "./store.js";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PRODUCTS_FILE = path.join(__dirname, "products.json");
 
-// ✅ Volume persistente do Railway
+// ✅ LEI DAS VARIÁVEIS DO RAILWAY (não hardcoded)
 const DATA_DIR = process.env.RAILWAY_VOLUME_MOUNT_PATH || "/data";
+const CHECK_INTERVAL_MINUTES = parseInt(process.env.CHECK_INTERVAL_MINUTES || "90", 10);
+const MONITOR_INTERVAL = CHECK_INTERVAL_MINUTES * 60 * 1000; // Converte minutos para ms
+const REQUEST_DELAY_MS = parseInt(process.env.REQUEST_DELAY_MS || "8000", 10);
+const ALERT_COOLDOWN_HOURS = parseInt(process.env.ALERT_COOLDOWN_HOURS || "24", 10);
 
 // ✅ Controle de concorrência
 let isRunning = false;
-const MONITOR_INTERVAL = 60000; // 1 minuto entre ciclos
 
 // ✅ Proteção contra crashes globais
 process.on("unhandledRejection", (reason, promise) => {
@@ -103,6 +106,8 @@ async function monitorCycle() {
 
   try {
     console.log(`\n🔄 [${new Date().toISOString()}] Iniciando ciclo de monitoramento...`);
+    console.log(`⏱️  Próximo ciclo em: ${CHECK_INTERVAL_MINUTES} minutos`);
+    console.log(`⏸️  Delay entre produtos: ${REQUEST_DELAY_MS}ms`);
 
     const products = await loadProducts();
     if (!products || !products.length) {
@@ -121,6 +126,9 @@ async function monitorCycle() {
           failCount++;
           const id = product.asin || product.mlId || `shopee_${product.itemId}`;
           console.warn(`⚠️ ${id}: Sem preço disponível`);
+
+          // ✅ RESPEITANDO REQUEST_DELAY_MS do Railway
+          await new Promise(r => setTimeout(r, REQUEST_DELAY_MS));
           continue;
         }
 
@@ -129,16 +137,25 @@ async function monitorCycle() {
         // ✅ Notifica se houver mudança
         await notifyIfPriceDropped(result);
 
-        // ✅ Delay entre requests
-        await new Promise(r => setTimeout(r, 2000));
+        // ✅ RESPEITANDO REQUEST_DELAY_MS do Railway
+        await new Promise(r => setTimeout(r, REQUEST_DELAY_MS));
       } catch (err) {
         failCount++;
         console.error(`❌ Erro ao processar produto:`, err.message);
+
+        // ✅ RESPEITANDO REQUEST_DELAY_MS do Railway mesmo em erro
+        await new Promise(r => setTimeout(r, REQUEST_DELAY_MS));
       }
     }
 
     const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
-    console.log(`✅ Ciclo concluído em ${elapsed}s (✅ ${successCount} | ❌ ${failCount})\n`);
+    const totalRequests = successCount + failCount;
+    const successRate = totalRequests > 0
+      ? ((successCount / totalRequests) * 100).toFixed(1)
+      : "0.0";
+
+    console.log(`✅ Ciclo concluído em ${elapsed}s`);
+    console.log(`📊 Resultado: ${successCount}✅ | ${failCount}❌ | Taxa: ${successRate}%\n`);
   } catch (err) {
     console.error("❌ Erro no ciclo de monitoramento:", err.message);
   } finally {
@@ -161,7 +178,9 @@ async function startMonitor() {
   console.log("═══════════════════════════════════════════════════");
   console.log("🚀 Monitor Synapse Iniciado");
   console.log(`📁 Diretório de dados: ${DATA_DIR}`);
-  console.log(`⏱️  Intervalo de monitoramento: ${MONITOR_INTERVAL / 1000}s`);
+  console.log(`⏱️  Intervalo de monitoramento: ${CHECK_INTERVAL_MINUTES} minutos`);
+  console.log(`⏸️  Delay entre produtos: ${REQUEST_DELAY_MS}ms`);
+  console.log(`💾 Cooldown de alertas: ${ALERT_COOLDOWN_HOURS} horas`);
   console.log("═══════════════════════════════════════════════════");
 
   // ✅ Inicializa WhatsApp
@@ -170,7 +189,8 @@ async function startMonitor() {
   // ✅ Primeiro ciclo imediato
   await monitorCycle();
 
-  // ✅ Próximos ciclos em intervalo
+  // ✅ Próximos ciclos respeitando CHECK_INTERVAL_MINUTES do Railway
+  console.log(`\n⏲️  Aguardando ${CHECK_INTERVAL_MINUTES} minutos até próximo ciclo...`);
   setInterval(() => {
     monitorCycle().catch(err => {
       console.error("❌ Erro não capturado em monitorCycle:", err);
