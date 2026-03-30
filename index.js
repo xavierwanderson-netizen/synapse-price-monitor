@@ -1,6 +1,7 @@
 import fs from "fs/promises";
 import path from "path";
 import { fileURLToPath } from "url";
+import validateEnvironment from "./config.js";
 import { initWhatsApp } from "./whatsapp.js";
 import { fetchAmazonProduct } from "./amazon.js";
 import { fetchMLProduct } from "./mercadolivre.js";
@@ -11,16 +12,18 @@ import { getLastPrice } from "./store.js";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PRODUCTS_FILE = path.join(__dirname, "products.json");
 
-// ✅ LEI DAS VARIÁVEIS DO RAILWAY (não hardcoded)
-// ✅ Volume: synapse-promos-bot-volume montado em /.data
-const DATA_DIR = process.env.RAILWAY_VOLUME_MOUNT_PATH || "/.data";
-const CHECK_INTERVAL_MINUTES = parseInt(process.env.CHECK_INTERVAL_MINUTES || "90", 10);
-const MONITOR_INTERVAL = CHECK_INTERVAL_MINUTES * 60 * 1000; // Converte minutos para ms
-const REQUEST_DELAY_MS = parseInt(process.env.REQUEST_DELAY_MS || "8000", 10);
-const ALERT_COOLDOWN_HOURS = parseInt(process.env.ALERT_COOLDOWN_HOURS || "24", 10);
+// ✅ VALIDAR CONFIGURAÇÃO NO STARTUP
+const config = validateEnvironment();
 
-// ✅ Controle de concorrência
+// ✅ VARIÁVEIS DO RAILWAY
+const DATA_DIR = config.dataDir;
+const CHECK_INTERVAL_MINUTES = config.timing.checkIntervalMinutes;
+const MONITOR_INTERVAL = CHECK_INTERVAL_MINUTES * 60 * 1000;
+const REQUEST_DELAY_MS = config.timing.requestDelayMs;
+
+// ✅ Controle de concorrência e cooldown
 let isRunning = false;
+const amazonCooldownTracker = {}; // Rastreia cooldown por ASIN
 
 // ✅ Proteção contra crashes globais
 process.on("unhandledRejection", (reason, promise) => {
@@ -53,16 +56,47 @@ async function fetchProduct(product) {
   try {
     let result = null;
 
-    // ✅ AMAZON: asin
+    // ✅ AMAZON: com verificação de cooldown inteligente
     if (platform.toLowerCase() === "amazon" && asin) {
-      result = await fetchAmazonProduct(asin);
+      // ✅ Verificar se está em cooldown
+      if (amazonCooldownTracker[asin]) {
+        const remainingMs = amazonCooldownTracker[asin] - Date.now();
+        if (remainingMs > 0) {
+          const remainingSec = Math.round(remainingMs / 1000);
+          console.warn(`⏸️  ${asin}: Em cooldown por ${remainingSec}s, pulando...`);
+          return null; // Pula silenciosamente, não é erro
+        } else {
+          delete amazonCooldownTracker[asin]; // Cooldown expirou
+        }
+      }
+
+      try {
+        result = await fetchAmazonProduct(asin);
+      } catch (err) {
+        // Se detectar cooldown, registrar e pular próximas tentativas
+        if (err.message.includes("Amazon em cooldown")) {
+          const cooldownSec = parseInt(err.message.match(/\d+/)?.[0] || "300", 10);
+          amazonCooldownTracker[asin] = Date.now() + (cooldownSec * 1000);
+          console.warn(`⏸️  ${asin}: Cooldown registrado por ${cooldownSec}s`);
+          return null; // Pula silenciosamente
+        }
+        throw err;
+      }
     }
     // ✅ SHOPEE: itemId + shopId
     else if (platform.toLowerCase() === "shopee" && itemId && shopId) {
+      if (!config.shopee.enabled) {
+        console.warn(`⚠️  Shopee não configurado (faltam APP_ID/APP_KEY), pulando...`);
+        return null;
+      }
       result = await fetchShopeeProduct(parseInt(itemId), parseInt(shopId));
     }
     // ✅ MERCADO LIVRE: mlId
     else if ((platform.toLowerCase() === "mercadolivre" || platform.toLowerCase() === "ml") && mlId) {
+      if (!config.mercadolivre.enabled) {
+        console.warn(`⚠️  Mercado Livre não configurado (faltam credenciais), pulando...`);
+        return null;
+      }
       result = await fetchMLProduct(mlId);
     }
     // ❌ Estrutura incompleta
@@ -73,7 +107,7 @@ async function fetchProduct(product) {
         mercadolivre: "mlId",
         ml: "mlId"
       };
-      console.warn(`⚠️ ${platform}: Faltam parâmetros obrigatórios (${required[platform.toLowerCase()]})`);
+      console.warn(`⚠️  ${platform}: Faltam parâmetros obrigatórios (${required[platform.toLowerCase()]})`);
       return null;
     }
 
@@ -118,17 +152,23 @@ async function monitorCycle() {
 
     let successCount = 0;
     let failCount = 0;
+    let skipCount = 0;
 
     for (const product of products) {
       try {
         const result = await fetchProduct(product);
 
-        if (!result || result.price === null || result.price === undefined) {
+        if (result === null) {
+          // Pulou (cooldown, não configurado, etc)
+          skipCount++;
+          await new Promise(r => setTimeout(r, REQUEST_DELAY_MS));
+          continue;
+        }
+
+        if (result.price === null || result.price === undefined) {
           failCount++;
           const id = product.asin || product.mlId || `shopee_${product.itemId}`;
           console.warn(`⚠️ ${id}: Sem preço disponível`);
-
-          // ✅ RESPEITANDO REQUEST_DELAY_MS do Railway
           await new Promise(r => setTimeout(r, REQUEST_DELAY_MS));
           continue;
         }
@@ -150,13 +190,13 @@ async function monitorCycle() {
     }
 
     const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
-    const totalRequests = successCount + failCount;
-    const successRate = totalRequests > 0
-      ? ((successCount / totalRequests) * 100).toFixed(1)
+    const totalAttempted = successCount + failCount;
+    const successRate = totalAttempted > 0
+      ? ((successCount / totalAttempted) * 100).toFixed(1)
       : "0.0";
 
     console.log(`✅ Ciclo concluído em ${elapsed}s`);
-    console.log(`📊 Resultado: ${successCount}✅ | ${failCount}❌ | Taxa: ${successRate}%\n`);
+    console.log(`📊 Resultado: ${successCount}✅ | ${failCount}❌ | ⏸️  ${skipCount} | Taxa: ${successRate}%\n`);
   } catch (err) {
     console.error("❌ Erro no ciclo de monitoramento:", err.message);
   } finally {
@@ -165,6 +205,11 @@ async function monitorCycle() {
 }
 
 async function initWhatsAppSafe() {
+  if (!config.whatsapp.enabled) {
+    console.log("⚠️  WhatsApp não configurado (WA_GROUP_ID faltando)");
+    return;
+  }
+
   try {
     console.log("📱 Inicializando WhatsApp...");
     await initWhatsApp();
@@ -176,13 +221,20 @@ async function initWhatsAppSafe() {
 }
 
 async function startMonitor() {
-  console.log("═══════════════════════════════════════════════════");
+  console.log("\n═══════════════════════════════════════════════════");
   console.log("🚀 Monitor Synapse Iniciado");
   console.log(`📁 Diretório de dados: ${DATA_DIR}`);
   console.log(`⏱️  Intervalo de monitoramento: ${CHECK_INTERVAL_MINUTES} minutos`);
   console.log(`⏸️  Delay entre produtos: ${REQUEST_DELAY_MS}ms`);
-  console.log(`💾 Cooldown de alertas: ${ALERT_COOLDOWN_HOURS} horas`);
   console.log("═══════════════════════════════════════════════════");
+
+  // ✅ Plataformas habilitadas
+  console.log("\n📊 Plataformas habilitadas:");
+  console.log(`   ${config.amazon.enabled ? "✅" : "❌"} Amazon`);
+  console.log(`   ${config.shopee.enabled ? "✅" : "❌"} Shopee`);
+  console.log(`   ${config.mercadolivre.enabled ? "✅" : "❌"} Mercado Livre`);
+  console.log(`   ${config.telegram.enabled ? "✅" : "❌"} Telegram`);
+  console.log(`   ${config.whatsapp.enabled ? "✅" : "❌"} WhatsApp\n`);
 
   // ✅ Inicializa WhatsApp
   await initWhatsAppSafe();
