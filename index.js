@@ -184,29 +184,3 @@ startMonitor().catch(err => {
   console.error("❌ Falha crítica ao iniciar monitor:", err.message);
   process.exit(1);
 });
-import { Hono } from "hono";
-import { serve } from "@hono/node-server";
-
-const app = new Hono();
-
-// Healthcheck (obrigatório pro Railway)
-app.get("/health", (c) => c.json({ status: "ok" }));
-
-// Endpoint simples (opcional)
-app.get("/", (c) => {
-  return c.json({
-    status: "running",
-    service: "price-monitor",
-    timestamp: new Date().toISOString()
-  });
-});
-
-// 🚨 IMPORTANTE: usar porta do Railway
-const PORT = process.env.PORT || 3000;
-
-serve({
-  fetch: app.fetch,
-  port: PORT,
-});
-
-console.log(`🌐 HTTP server rodando na porta ${PORT}`);
