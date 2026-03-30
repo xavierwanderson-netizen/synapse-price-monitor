@@ -12,7 +12,8 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PRODUCTS_FILE = path.join(__dirname, "products.json");
 
 // ✅ LEI DAS VARIÁVEIS DO RAILWAY (não hardcoded)
-const DATA_DIR = process.env.RAILWAY_VOLUME_MOUNT_PATH || "/data";
+// ✅ Volume: synapse-promos-bot-volume montado em /.data
+const DATA_DIR = process.env.RAILWAY_VOLUME_MOUNT_PATH || "/.data";
 const CHECK_INTERVAL_MINUTES = parseInt(process.env.CHECK_INTERVAL_MINUTES || "90", 10);
 const MONITOR_INTERVAL = CHECK_INTERVAL_MINUTES * 60 * 1000; // Converte minutos para ms
 const REQUEST_DELAY_MS = parseInt(process.env.REQUEST_DELAY_MS || "8000", 10);
