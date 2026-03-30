@@ -2,19 +2,19 @@ import fs from "fs/promises";
 import path from "path";
 import { fileURLToPath } from "url";
 import { initWhatsApp } from "./whatsapp.js";
-import { monitorAmazon } from "./amazon.js";
-import { monitorMercadoLivre } from "./mercadolivre.js";
-import { monitorShopee } from "./shopee.js";
-import { sendAlert } from "./notifier.js";
-import { getStore, updatePrice, markNotified, isCooldownActive } from "./store.js";
+import { fetchAmazonProduct } from "./amazon.js";
+import { fetchMLProduct } from "./mercadolivre.js";
+import { fetchShopeeProduct } from "./shopee.js";
+import { notifyIfPriceDropped } from "./notifier.js";
+import { getStore, updatePrice, markNotified, isCooldownActive, getLastPrice } from "./store.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PRODUCTS_FILE = path.join(__dirname, "products.json");
 
-// ✅ Volume persistente do Railway (corrigido de /.data para /data)
+// ✅ Volume persistente do Railway
 const DATA_DIR = process.env.RAILWAY_VOLUME_MOUNT_PATH || "/data";
 
-// ✅ Controle de concorrência (evita múltiplos ciclos simultâneos)
+// ✅ Controle de concorrência
 let isRunning = false;
 const MONITOR_INTERVAL = 60000; // 1 minuto entre ciclos
 
@@ -26,7 +26,6 @@ process.on("unhandledRejection", (reason, promise) => {
 
 process.on("uncaughtException", (error) => {
   console.error("❌ [CRÍTICO] Exceção não tratada:", error);
-  // Continua executando em vez de derrubar o processo
   isRunning = false;
 });
 
@@ -40,8 +39,41 @@ async function loadProducts() {
   }
 }
 
+async function fetchProduct(product) {
+  const { id, url, platform } = product;
+  let result = null;
+
+  try {
+    if (platform.toLowerCase() === "amazon") {
+      // Extrai ASIN da URL
+      const asinMatch = url.match(/\/dp\/([A-Z0-9]{10})/i);
+      if (!asinMatch) throw new Error("ASIN não encontrado na URL");
+      result = await fetchAmazonProduct(asinMatch[1]);
+    } else if (platform.toLowerCase() === "mercadolivre" || platform.toLowerCase() === "ml") {
+      // Extrai ID do ML (MLxxxxxxxxxxxx)
+      const mlIdMatch = url.match(/MLB?\d+/) || id.match(/ml_([A-Z0-9]+)/i);
+      if (!mlIdMatch) throw new Error("ID do ML não encontrado");
+      result = await fetchMLProduct(mlIdMatch[0] || mlIdMatch[1]);
+    } else if (platform.toLowerCase() === "shopee") {
+      // Extrai itemId e shopId (shopee.com.br/itemId-shopId)
+      const shopeeMatch = url.match(/\/(\d+)-(\d+)/);
+      if (!shopeeMatch) throw new Error("itemId ou shopId não encontrados");
+      result = await fetchShopeeProduct(parseInt(shopeeMatch[1]), parseInt(shopeeMatch[2]));
+    }
+
+    if (!result) return null;
+
+    // Sobrescreve ID para garantir compatibilidade
+    result.id = id;
+    return result;
+  } catch (err) {
+    console.error(`❌ Erro ao buscar ${id} (${platform}):`, err.message);
+    return null;
+  }
+}
+
 async function monitorCycle() {
-  // ✅ Proteção contra sobreposição de ciclos
+  // ✅ Proteção contra sobreposição
   if (isRunning) {
     console.warn("⚠️ Ciclo anterior ainda em execução, pulando...");
     return;
@@ -51,7 +83,7 @@ async function monitorCycle() {
   const startTime = Date.now();
 
   try {
-    console.log(`🔄 [${new Date().toISOString()}] Iniciando ciclo de monitoramento...`);
+    console.log(`\n🔄 [${new Date().toISOString()}] Iniciando ciclo de monitoramento...`);
 
     const products = await loadProducts();
     if (!products.length) {
@@ -59,55 +91,34 @@ async function monitorCycle() {
       return;
     }
 
-    let changedCount = 0;
+    let successCount = 0;
+    let failCount = 0;
 
     for (const product of products) {
       try {
-        const { id, url, platform, targetPrice } = product;
+        const result = await fetchProduct(product);
 
-        // ✅ Rota por plataforma
-        let currentPrice = null;
-
-        if (platform.toLowerCase() === "amazon") {
-          currentPrice = await monitorAmazon(url);
-        } else if (platform.toLowerCase() === "mercadolivre") {
-          currentPrice = await monitorMercadoLivre(url);
-        } else if (platform.toLowerCase() === "shopee") {
-          currentPrice = await monitorShopee(url);
-        }
-
-        if (currentPrice === null) {
-          console.warn(`⚠️ Falha ao monitorar ${id} (${platform})`);
+        if (!result || result.price === null) {
+          failCount++;
+          console.warn(`⚠️ ${product.id}: Sem preço disponível`);
           continue;
         }
 
-        // ✅ Comparação e alerta
-        const lastPrice = await updatePrice(id, currentPrice);
+        successCount++;
 
-        if (lastPrice && Math.abs(currentPrice - lastPrice) > 1) {
-          changedCount++;
-          const change = ((currentPrice - lastPrice) / lastPrice * 100).toFixed(2);
-          const emoji = currentPrice < lastPrice ? "📉" : "📈";
+        // Notifica se houver mudança significativa
+        await notifyIfPriceDropped(result);
 
-          console.log(`${emoji} ${id}: R$ ${lastPrice.toFixed(2)} → R$ ${currentPrice.toFixed(2)} (${change}%)`);
-
-          // ✅ Alerta se atingiu target e cooldown ativo
-          if (currentPrice <= targetPrice && !(await isCooldownActive(id))) {
-            await sendAlert(product, currentPrice);
-            await markNotified(id);
-          }
-        }
-
-        // ✅ Delay entre requests (evita bloqueios)
+        // ✅ Delay entre requests
         await new Promise(r => setTimeout(r, 2000));
       } catch (err) {
-        console.error(`❌ Erro ao processar produto ${product.id}:`, err.message);
-        // Continua para o próximo produto
+        failCount++;
+        console.error(`❌ Erro ao processar ${product.id}:`, err.message);
       }
     }
 
     const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
-    console.log(`✅ Ciclo concluído em ${elapsed}s (${changedCount} mudanças detectadas)\n`);
+    console.log(`✅ Ciclo concluído em ${elapsed}s (✅ ${successCount} | ❌ ${failCount})\n`);
   } catch (err) {
     console.error("❌ Erro no ciclo de monitoramento:", err.message);
   } finally {
@@ -131,7 +142,7 @@ async function startMonitor() {
   console.log("🚀 Monitor Synapse Iniciado");
   console.log(`📁 Diretório de dados: ${DATA_DIR}`);
   console.log(`⏱️  Intervalo de monitoramento: ${MONITOR_INTERVAL / 1000}s`);
-  console.log("═══════════════════════════════════════════════════\n");
+  console.log("═══════════════════════════════════════════════════");
 
   // ✅ Inicializa WhatsApp de forma segura
   await initWhatsAppSafe();

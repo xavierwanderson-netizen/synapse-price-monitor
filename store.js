@@ -11,7 +11,7 @@ const COOLDOWN_MS = COOLDOWN_HOURS * 60 * 60 * 1000;
 // ✅ MELHORIA: Cache em memória evita centenas de leituras de disco por ciclo
 let memoryCache = null;
 
-async function getStore() {
+export async function getStore() {
   if (memoryCache) return memoryCache;
   try {
     const raw = await fs.readFile(STORE_FILE, "utf-8");
