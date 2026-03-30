@@ -6,7 +6,7 @@ import { fetchAmazonProduct } from "./amazon.js";
 import { fetchMLProduct } from "./mercadolivre.js";
 import { fetchShopeeProduct } from "./shopee.js";
 import { notifyIfPriceDropped } from "./notifier.js";
-import { getStore, updatePrice, markNotified, isCooldownActive, getLastPrice } from "./store.js";
+import { getLastPrice } from "./store.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PRODUCTS_FILE = path.join(__dirname, "products.json");
@@ -21,7 +21,6 @@ const MONITOR_INTERVAL = 60000; // 1 minuto entre ciclos
 // ✅ Proteção contra crashes globais
 process.on("unhandledRejection", (reason, promise) => {
   console.error("❌ [CRÍTICO] Promise rejection não tratada:", reason);
-  console.error("Promise:", promise);
 });
 
 process.on("uncaughtException", (error) => {
@@ -40,34 +39,54 @@ async function loadProducts() {
 }
 
 async function fetchProduct(product) {
-  const { id, url, platform } = product;
-  let result = null;
+  const { asin, itemId, shopId, mlId, platform } = product;
+
+  if (!platform) {
+    console.error("❌ Produto sem plataforma definida:", product);
+    return null;
+  }
 
   try {
-    if (platform.toLowerCase() === "amazon") {
-      // Extrai ASIN da URL
-      const asinMatch = url.match(/\/dp\/([A-Z0-9]{10})/i);
-      if (!asinMatch) throw new Error("ASIN não encontrado na URL");
-      result = await fetchAmazonProduct(asinMatch[1]);
-    } else if (platform.toLowerCase() === "mercadolivre" || platform.toLowerCase() === "ml") {
-      // Extrai ID do ML (MLxxxxxxxxxxxx)
-      const mlIdMatch = url.match(/MLB?\d+/) || id.match(/ml_([A-Z0-9]+)/i);
-      if (!mlIdMatch) throw new Error("ID do ML não encontrado");
-      result = await fetchMLProduct(mlIdMatch[0] || mlIdMatch[1]);
-    } else if (platform.toLowerCase() === "shopee") {
-      // Extrai itemId e shopId (shopee.com.br/itemId-shopId)
-      const shopeeMatch = url.match(/\/(\d+)-(\d+)/);
-      if (!shopeeMatch) throw new Error("itemId ou shopId não encontrados");
-      result = await fetchShopeeProduct(parseInt(shopeeMatch[1]), parseInt(shopeeMatch[2]));
+    let result = null;
+
+    // ✅ AMAZON: asin
+    if (platform.toLowerCase() === "amazon" && asin) {
+      result = await fetchAmazonProduct(asin);
+    }
+    // ✅ SHOPEE: itemId + shopId
+    else if (platform.toLowerCase() === "shopee" && itemId && shopId) {
+      result = await fetchShopeeProduct(parseInt(itemId), parseInt(shopId));
+    }
+    // ✅ MERCADO LIVRE: mlId
+    else if ((platform.toLowerCase() === "mercadolivre" || platform.toLowerCase() === "ml") && mlId) {
+      result = await fetchMLProduct(mlId);
+    }
+    // ❌ Estrutura incompleta
+    else {
+      const required = {
+        amazon: "asin",
+        shopee: "itemId + shopId",
+        mercadolivre: "mlId",
+        ml: "mlId"
+      };
+      console.warn(`⚠️ ${platform}: Faltam parâmetros obrigatórios (${required[platform.toLowerCase()]})`);
+      return null;
     }
 
-    if (!result) return null;
+    // Se falhou na fetch
+    if (!result) {
+      return null;
+    }
 
-    // Sobrescreve ID para garantir compatibilidade
-    result.id = id;
+    // ✅ Gera ID único baseado na plataforma
+    if (asin) result.id = `amazon_${asin}`;
+    else if (itemId && shopId) result.id = `shopee_${itemId}`;
+    else if (mlId) result.id = `ml_${mlId}`;
+
     return result;
   } catch (err) {
-    console.error(`❌ Erro ao buscar ${id} (${platform}):`, err.message);
+    const identifier = asin || mlId || `shopee_${itemId}` || JSON.stringify(product);
+    console.error(`❌ Erro ao processar ${identifier}:`, err.message);
     return null;
   }
 }
@@ -86,7 +105,7 @@ async function monitorCycle() {
     console.log(`\n🔄 [${new Date().toISOString()}] Iniciando ciclo de monitoramento...`);
 
     const products = await loadProducts();
-    if (!products.length) {
+    if (!products || !products.length) {
       console.warn("⚠️ Nenhum produto para monitorar");
       return;
     }
@@ -98,22 +117,23 @@ async function monitorCycle() {
       try {
         const result = await fetchProduct(product);
 
-        if (!result || result.price === null) {
+        if (!result || result.price === null || result.price === undefined) {
           failCount++;
-          console.warn(`⚠️ ${product.id}: Sem preço disponível`);
+          const id = product.asin || product.mlId || `shopee_${product.itemId}`;
+          console.warn(`⚠️ ${id}: Sem preço disponível`);
           continue;
         }
 
         successCount++;
 
-        // Notifica se houver mudança significativa
+        // ✅ Notifica se houver mudança
         await notifyIfPriceDropped(result);
 
         // ✅ Delay entre requests
         await new Promise(r => setTimeout(r, 2000));
       } catch (err) {
         failCount++;
-        console.error(`❌ Erro ao processar ${product.id}:`, err.message);
+        console.error(`❌ Erro ao processar produto:`, err.message);
       }
     }
 
@@ -144,7 +164,7 @@ async function startMonitor() {
   console.log(`⏱️  Intervalo de monitoramento: ${MONITOR_INTERVAL / 1000}s`);
   console.log("═══════════════════════════════════════════════════");
 
-  // ✅ Inicializa WhatsApp de forma segura
+  // ✅ Inicializa WhatsApp
   await initWhatsAppSafe();
 
   // ✅ Primeiro ciclo imediato
@@ -159,7 +179,7 @@ async function startMonitor() {
   }, MONITOR_INTERVAL);
 }
 
-// ✅ Inicia o monitor ao carregar
+// ✅ Inicia o monitor
 startMonitor().catch(err => {
   console.error("❌ Falha crítica ao iniciar monitor:", err.message);
   process.exit(1);
