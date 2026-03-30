@@ -4,7 +4,7 @@ import path from "path";
 import fs from "fs";
 import pino from "pino";
 
-const DATA_DIR = process.env.RAILWAY_VOLUME_MOUNT_PATH || "/.data";
+const DATA_DIR = process.env.RAILWAY_VOLUME_MOUNT_PATH || "/data";
 const AUTH_DIR = path.join(DATA_DIR, "wa_auth");
 const WA_GROUP_ID = process.env.WA_GROUP_ID;
 const WA_GROUP_INVITE = process.env.WA_GROUP_INVITE;

@@ -88,24 +88,42 @@ const inlineKeyboard = (url) => ({
   inline_keyboard: [[{ text: "🛒 COMPRAR AGORA", url }]]
 });
 
-async function sendTelegramPhoto(image, caption, url) {
-  await axios.post(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendPhoto`, {
-    chat_id: TELEGRAM_CHAT_ID,
-    photo: image,
-    caption,
-    parse_mode: "HTML",
-    reply_markup: inlineKeyboard(url)
-  });
+async function sendTelegramPhoto(image, caption, url, attempt = 1) {
+  try {
+    await axios.post(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendPhoto`, {
+      chat_id: TELEGRAM_CHAT_ID,
+      photo: image,
+      caption,
+      parse_mode: "HTML",
+      reply_markup: inlineKeyboard(url)
+    }, { timeout: 10000 });
+  } catch (error) {
+    if (attempt < 2) {
+      console.warn("⚠️ Telegram Photo falhou. Retry em 2s...");
+      await new Promise(r => setTimeout(r, 2000));
+      return sendTelegramPhoto(image, caption, url, attempt + 1);
+    }
+    throw error;
+  }
 }
 
-async function sendTelegramText(text, url) {
-  await axios.post(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
-    chat_id: TELEGRAM_CHAT_ID,
-    text,
-    parse_mode: "HTML",
-    disable_web_page_preview: false,
-    reply_markup: inlineKeyboard(url)
-  });
+async function sendTelegramText(text, url, attempt = 1) {
+  try {
+    await axios.post(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
+      chat_id: TELEGRAM_CHAT_ID,
+      text,
+      parse_mode: "HTML",
+      disable_web_page_preview: false,
+      reply_markup: inlineKeyboard(url)
+    }, { timeout: 10000 });
+  } catch (error) {
+    if (attempt < 2) {
+      console.warn("⚠️ Telegram Text falhou. Retry em 2s...");
+      await new Promise(r => setTimeout(r, 2000));
+      return sendTelegramText(text, url, attempt + 1);
+    }
+    throw error;
+  }
 }
 
 // ─── MENSAGENS ───────────────────────────────────────────────────────────────

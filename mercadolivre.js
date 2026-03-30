@@ -2,13 +2,13 @@ import axios from "axios";
 import fs from "fs";
 import { retryWithBackoff } from "./retry.js";
 
-const TOKENS_PATH = "/.data/ml_tokens_v2.json";
+const TOKENS_PATH = "/data/ml_tokens_v2.json";
 const AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36";
 const TOKEN_PROACTIVE_REFRESH_MS = 2 * 60 * 1000; // Renovar 2 minutos antes de expirar
 
 async function saveTokens(tokens) {
   try {
-    const dir = "/.data";
+    const dir = "/data";
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
     fs.writeFileSync(TOKENS_PATH, JSON.stringify(tokens, null, 2));
     console.log("✅ ML: Tokens salvos com sucesso.");

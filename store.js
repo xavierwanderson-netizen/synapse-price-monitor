@@ -1,8 +1,8 @@
 import fs from "fs/promises";
 import path from "path";
 
-// ✅ CORRIGIDO: path consistente com o volume Railway montado em /.data
-const DATA_DIR = process.env.RAILWAY_VOLUME_MOUNT_PATH || "/.data";
+// ✅ CORRIGIDO: path consistente com o volume Railway montado em /data
+const DATA_DIR = process.env.RAILWAY_VOLUME_MOUNT_PATH || "/data";
 const STORE_FILE = path.join(DATA_DIR, "store.json");
 
 const COOLDOWN_HOURS = parseInt(process.env.ALERT_COOLDOWN_HOURS || "12", 10);
