@@ -1,10 +1,22 @@
 import axios from "axios";
 import * as cheerio from "cheerio";
+import { HttpsProxyAgent } from "https-proxy-agent";
+import { HttpProxyAgent } from "http-proxy-agent";
 import {
   retryWithBackoff,
   isBlockedOrErrorPage,
   getRandomUserAgent
 } from "./retry.js";
+
+const PROXY_URL = process.env.PROXY_URL || null;
+
+function getProxyAgents() {
+  if (!PROXY_URL) return {};
+  return {
+    httpAgent: new HttpProxyAgent(PROXY_URL),
+    httpsAgent: new HttpsProxyAgent(PROXY_URL),
+  };
+}
 
 let cachedToken = null;
 let tokenExpiry = 0;
@@ -38,7 +50,8 @@ async function getAccessToken() {
       headers: {
         "Content-Type": "application/x-www-form-urlencoded"
       },
-      timeout: 15000
+      timeout: 15000,
+      ...getProxyAgents()
     });
 
     cachedToken = data.access_token;
@@ -135,7 +148,8 @@ export async function fetchAmazonProduct(asin) {
           "Authorization": `Bearer ${token}`,
           "Content-Type": "application/json"
         },
-        timeout: parseInt(process.env.AMAZON_TIMEOUT_MS || "30000", 10)
+        timeout: parseInt(process.env.AMAZON_TIMEOUT_MS || "30000", 10),
+        ...getProxyAgents()
       }
     );
 
@@ -221,7 +235,8 @@ async function scrapeAmazon(asin, marketplace, partnerTag) {
       "Accept-Language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7",
       "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7"
     },
-    timeout: parseInt(process.env.AMAZON_TIMEOUT_MS || "30000", 10)
+    timeout: parseInt(process.env.AMAZON_TIMEOUT_MS || "30000", 10),
+    ...getProxyAgents()
   });
 
   if (isBlockedOrErrorPage(data)) {
