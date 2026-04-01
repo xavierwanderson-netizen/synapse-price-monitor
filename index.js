@@ -63,8 +63,9 @@ async function fetchProduct(product) {
         const remainingMs = amazonCooldownTracker[asin] - Date.now();
         if (remainingMs > 0) {
           const remainingSec = Math.round(remainingMs / 1000);
-          console.warn(`⏸️  ${asin}: Em cooldown por ${remainingSec}s, pulando...`);
-          return null; // Pula silenciosamente, não é erro
+          // ✅ FIX: cooldown é comportamento esperado, não erro
+          console.log(`⏸️  ${asin}: Em cooldown por ${remainingSec}s, pulando...`);
+          return null;
         } else {
           delete amazonCooldownTracker[asin]; // Cooldown expirou
         }
@@ -77,8 +78,9 @@ async function fetchProduct(product) {
         if (err.message.includes("Amazon em cooldown")) {
           const cooldownSec = parseInt(err.message.match(/\d+/)?.[0] || "300", 10);
           amazonCooldownTracker[asin] = Date.now() + (cooldownSec * 1000);
-          console.warn(`⏸️  ${asin}: Cooldown registrado por ${cooldownSec}s`);
-          return null; // Pula silenciosamente
+          // ✅ FIX: cooldown é comportamento esperado, não erro
+          console.log(`⏸️  ${asin}: Cooldown registrado por ${cooldownSec}s`);
+          return null;
         }
         throw err;
       }
@@ -159,7 +161,6 @@ async function monitorCycle() {
         const result = await fetchProduct(product);
 
         if (result === null) {
-          // Pulou (cooldown, não configurado, etc)
           skipCount++;
           await new Promise(r => setTimeout(r, REQUEST_DELAY_MS));
           continue;
