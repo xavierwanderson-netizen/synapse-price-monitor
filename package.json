@@ -17,6 +17,7 @@
     "@whiskeysockets/baileys": "^6.7.0",
     "@hapi/boom": "^10.0.1",
     "pino": "^8.19.0",
-    "https-proxy-agent": "^7.0.2"
+    "https-proxy-agent": "^7.0.2",
+    "http-proxy-agent": "^7.0.2"
   }
 }

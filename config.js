@@ -38,6 +38,9 @@ export function validateEnvironment() {
     // WhatsApp (opcional)
     WA_GROUP_ID: process.env.WA_GROUP_ID || null,
 
+    // Proxy (opcional)
+    PROXY_URL: process.env.PROXY_URL || null,
+
     // Volume
     RAILWAY_VOLUME_MOUNT_PATH: process.env.RAILWAY_VOLUME_MOUNT_PATH || "/.data",
   };
@@ -112,6 +115,7 @@ export function validateEnvironment() {
       groupId: process.env.WA_GROUP_ID,
     },
     dataDir: process.env.RAILWAY_VOLUME_MOUNT_PATH || "/.data",
+    proxyUrl: process.env.PROXY_URL || null,
   };
 }
 
