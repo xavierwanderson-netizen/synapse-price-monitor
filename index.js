@@ -21,9 +21,41 @@ const CHECK_INTERVAL_MINUTES = config.timing.checkIntervalMinutes;
 const MONITOR_INTERVAL = CHECK_INTERVAL_MINUTES * 60 * 1000;
 const REQUEST_DELAY_MS = config.timing.requestDelayMs;
 
-// ✅ Controle de concorrência e cooldown
+// ✅ Controle de concorrência e cooldown de rate limit
 let isRunning = false;
-const amazonCooldownTracker = {}; // Rastreia cooldown por ASIN
+const amazonCooldownTracker = {};
+
+// ✅ Circuit breaker — suspende ASINs com falhas consecutivas no scraper
+// Evita gastar 3 tentativas por ciclo em produtos permanentemente bloqueados
+// Estrutura: { asin: { failures: N, suspendedUntil: timestamp|null } }
+const scraperCircuitBreaker = {};
+const CIRCUIT_BREAKER_THRESHOLD = 3;             // falhas consecutivas para abrir
+const CIRCUIT_BREAKER_PAUSE_MS = 24 * 60 * 60 * 1000; // 24h suspenso
+
+function isCircuitOpen(asin) {
+  const state = scraperCircuitBreaker[asin];
+  if (!state?.suspendedUntil) return false;
+  if (Date.now() < state.suspendedUntil) return true;
+  // Pausa expirou — half-open: tenta de novo e reseta
+  delete scraperCircuitBreaker[asin];
+  console.log(`🔁 ${asin}: Circuit breaker resetado após 24h, tentando novamente`);
+  return false;
+}
+
+function recordScraperSuccess(asin) {
+  if (scraperCircuitBreaker[asin]) delete scraperCircuitBreaker[asin];
+}
+
+function recordScraperFailure(asin) {
+  if (!scraperCircuitBreaker[asin]) {
+    scraperCircuitBreaker[asin] = { failures: 0, suspendedUntil: null };
+  }
+  scraperCircuitBreaker[asin].failures += 1;
+  if (scraperCircuitBreaker[asin].failures >= CIRCUIT_BREAKER_THRESHOLD) {
+    scraperCircuitBreaker[asin].suspendedUntil = Date.now() + CIRCUIT_BREAKER_PAUSE_MS;
+    console.log(`⛔ ${asin}: Circuit breaker aberto após ${CIRCUIT_BREAKER_THRESHOLD} falhas consecutivas — suspenso por 24h`);
+  }
+}
 
 // ✅ Proteção contra crashes globais
 process.on("unhandledRejection", (reason, promise) => {
@@ -56,9 +88,18 @@ async function fetchProduct(product) {
   try {
     let result = null;
 
-    // ✅ AMAZON: com verificação de cooldown inteligente
+    // ✅ AMAZON: circuit breaker → cooldown → fetch
     if (platform.toLowerCase() === "amazon" && asin) {
-      // ✅ Verificar se está em cooldown
+
+      // 1. Circuit breaker (ASIN com bloqueio persistente no scraper)
+      if (isCircuitOpen(asin)) {
+        const state = scraperCircuitBreaker[asin];
+        const remainingHours = Math.round((state.suspendedUntil - Date.now()) / 1000 / 60 / 60);
+        console.log(`⛔ ${asin}: Suspenso pelo circuit breaker (~${remainingHours}h restantes), pulando`);
+        return null;
+      }
+
+      // 2. Cooldown de rate limit
       if (amazonCooldownTracker[asin]) {
         const remainingMs = amazonCooldownTracker[asin] - Date.now();
         if (remainingMs > 0) {
@@ -67,20 +108,26 @@ async function fetchProduct(product) {
           console.log(`⏸️  ${asin}: Em cooldown por ${remainingSec}s, pulando...`);
           return null;
         } else {
-          delete amazonCooldownTracker[asin]; // Cooldown expirou
+          delete amazonCooldownTracker[asin];
         }
       }
 
       try {
         result = await fetchAmazonProduct(asin);
+        // Sucesso — zera contador de falhas
+        if (result) recordScraperSuccess(asin);
+
       } catch (err) {
-        // Se detectar cooldown, registrar e pular próximas tentativas
         if (err.message.includes("Amazon em cooldown")) {
           const cooldownSec = parseInt(err.message.match(/\d+/)?.[0] || "300", 10);
           amazonCooldownTracker[asin] = Date.now() + (cooldownSec * 1000);
           // ✅ FIX: cooldown é comportamento esperado, não erro
           console.log(`⏸️  ${asin}: Cooldown registrado por ${cooldownSec}s`);
           return null;
+        }
+        // Falha de scraper por bloqueio → incrementa circuit breaker
+        if (err.message.includes("bloqueio") || err.message.includes("Falha permanente")) {
+          recordScraperFailure(asin);
         }
         throw err;
       }
@@ -113,10 +160,7 @@ async function fetchProduct(product) {
       return null;
     }
 
-    // Se falhou na fetch
-    if (!result) {
-      return null;
-    }
+    if (!result) return null;
 
     // ✅ Gera ID único baseado na plataforma
     if (asin) result.id = `amazon_${asin}`;
@@ -124,6 +168,7 @@ async function fetchProduct(product) {
     else if (mlId) result.id = `ml_${mlId}`;
 
     return result;
+
   } catch (err) {
     const identifier = asin || mlId || `shopee_${itemId}` || JSON.stringify(product);
     console.error(`❌ Erro ao processar ${identifier}:`, err.message);
@@ -132,7 +177,6 @@ async function fetchProduct(product) {
 }
 
 async function monitorCycle() {
-  // ✅ Proteção contra sobreposição
   if (isRunning) {
     console.warn("⚠️ Ciclo anterior ainda em execução, pulando...");
     return;
@@ -145,6 +189,13 @@ async function monitorCycle() {
     console.log(`\n🔄 [${new Date().toISOString()}] Iniciando ciclo de monitoramento...`);
     console.log(`⏱️  Próximo ciclo em: ${CHECK_INTERVAL_MINUTES} minutos`);
     console.log(`⏸️  Delay entre produtos: ${REQUEST_DELAY_MS}ms`);
+
+    // Resumo do circuit breaker no início de cada ciclo
+    const openCircuits = Object.entries(scraperCircuitBreaker)
+      .filter(([, s]) => s.suspendedUntil && Date.now() < s.suspendedUntil);
+    if (openCircuits.length > 0) {
+      console.log(`⛔ Circuit breaker ativo: ${openCircuits.length} ASIN(s) suspenso(s) — ${openCircuits.map(([a]) => a).join(', ')}`);
+    }
 
     const products = await loadProducts();
     if (!products || !products.length) {
@@ -175,17 +226,12 @@ async function monitorCycle() {
         }
 
         successCount++;
-
-        // ✅ Notifica se houver mudança
         await notifyIfPriceDropped(result);
-
-        // ✅ RESPEITANDO REQUEST_DELAY_MS do Railway
         await new Promise(r => setTimeout(r, REQUEST_DELAY_MS));
+
       } catch (err) {
         failCount++;
         console.error(`❌ Erro ao processar produto:`, err.message);
-
-        // ✅ RESPEITANDO REQUEST_DELAY_MS do Railway mesmo em erro
         await new Promise(r => setTimeout(r, REQUEST_DELAY_MS));
       }
     }
@@ -198,6 +244,7 @@ async function monitorCycle() {
 
     console.log(`✅ Ciclo concluído em ${elapsed}s`);
     console.log(`📊 Resultado: ${successCount}✅ | ${failCount}❌ | ⏸️  ${skipCount} | Taxa: ${successRate}%\n`);
+
   } catch (err) {
     console.error("❌ Erro no ciclo de monitoramento:", err.message);
   } finally {
@@ -210,7 +257,6 @@ async function initWhatsAppSafe() {
     console.log("⚠️  WhatsApp não configurado (WA_GROUP_ID faltando)");
     return;
   }
-
   try {
     console.log("📱 Inicializando WhatsApp...");
     await initWhatsApp();
@@ -229,7 +275,6 @@ async function startMonitor() {
   console.log(`⏸️  Delay entre produtos: ${REQUEST_DELAY_MS}ms`);
   console.log("═══════════════════════════════════════════════════");
 
-  // ✅ Plataformas habilitadas
   console.log("\n📊 Plataformas habilitadas:");
   console.log(`   ${config.amazon.enabled ? "✅" : "❌"} Amazon`);
   console.log(`   ${config.shopee.enabled ? "✅" : "❌"} Shopee`);
@@ -237,13 +282,9 @@ async function startMonitor() {
   console.log(`   ${config.telegram.enabled ? "✅" : "❌"} Telegram`);
   console.log(`   ${config.whatsapp.enabled ? "✅" : "❌"} WhatsApp\n`);
 
-  // ✅ Inicializa WhatsApp
   await initWhatsAppSafe();
-
-  // ✅ Primeiro ciclo imediato
   await monitorCycle();
 
-  // ✅ Próximos ciclos respeitando CHECK_INTERVAL_MINUTES do Railway
   console.log(`\n⏲️  Aguardando ${CHECK_INTERVAL_MINUTES} minutos até próximo ciclo...`);
   setInterval(() => {
     monitorCycle().catch(err => {
@@ -253,7 +294,6 @@ async function startMonitor() {
   }, MONITOR_INTERVAL);
 }
 
-// ✅ Inicia o monitor
 startMonitor().catch(err => {
   console.error("❌ Falha crítica ao iniciar monitor:", err.message);
   process.exit(1);
