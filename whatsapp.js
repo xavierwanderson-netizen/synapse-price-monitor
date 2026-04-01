@@ -1,8 +1,6 @@
 import { makeWASocket, useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion } from "@whiskeysockets/baileys";
-import { Boom } from "@hapi/boom";
 import path from "path";
 import fs from "fs";
-import pino from "pino";
 
 const DATA_DIR = process.env.RAILWAY_VOLUME_MOUNT_PATH || "/.data";
 const AUTH_DIR = path.join(DATA_DIR, "wa_auth");

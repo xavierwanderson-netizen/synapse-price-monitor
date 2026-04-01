@@ -60,6 +60,7 @@ async function getAccessToken() {
     return cachedToken;
   } catch (error) {
     const errorMsg = error.response?.data?.error_description || error.response?.data?.error || error.message;
+    // ⚠️ Não logar token aqui - pode expor credenciais em produção
     console.error(`❌ Erro na autenticação V3.1: ${errorMsg}`);
     throw new Error(`Falha na autenticação Amazon V3.1: ${errorMsg}`);
   }
