@@ -12,27 +12,25 @@ let blockadeStart = 0;
 
 const BLOCKADE_WAIT_MS = 5 * 60 * 1000; // 5 minutos
 
-// ✅ V3.1 LWA (Login with Amazon) - CORRETO PARA SUAS CREDENCIAIS
+// ✅ V3.1 LWA (Login with Amazon)
 async function getAccessToken() {
-  // Retorna token em cache se ainda válido
   if (cachedToken && Date.now() < tokenExpiry) return cachedToken;
-  
+
   const clientId = process.env.AMAZON_CREDENTIAL_ID;
   const clientSecret = process.env.AMAZON_CREDENTIAL_SECRET;
-  
+
   if (!clientId || !clientSecret) {
     throw new Error("❌ AMAZON_CREDENTIAL_ID ou AMAZON_CREDENTIAL_SECRET não configurados no Railway");
   }
 
-  // ✅ ENDPOINT CORRETO PARA V3.1: api.amazon.com (não amazoncognito)
+  // ✅ Endpoint de autenticação LwA — correto para v3.1
   const authUrl = "https://api.amazon.com/auth/o2/token";
-  
-  // ✅ FORMATO CORRETO: URLSearchParams com scope creatorsapi::default (:: não /)
+
   const params = new URLSearchParams({
     grant_type: "client_credentials",
     client_id: clientId,
     client_secret: clientSecret,
-    scope: "creatorsapi::default"  // ✅ :: (dois-pontos-duplos)
+    scope: "creatorsapi::default"
   });
 
   try {
@@ -44,9 +42,8 @@ async function getAccessToken() {
     });
 
     cachedToken = data.access_token;
-    // Token expires_in é em segundos, converte para ms com 1 min de margem
     tokenExpiry = Date.now() + (data.expires_in * 1000) - 60000;
-    
+
     return cachedToken;
   } catch (error) {
     const errorMsg = error.response?.data?.error_description || error.response?.data?.error || error.message;
@@ -58,7 +55,6 @@ async function getAccessToken() {
 function extractPrice(html) {
   const $ = cheerio.load(html);
 
-  // Tentar múltiplos seletores para preço inteiro
   let whole = $(".a-price-whole").first().text().replace(/[^\d]/g, "");
   if (!whole) {
     whole = $("[data-a-price-whole]").first().attr("data-a-price-whole")?.replace(/[^\d]/g, "") || "";
@@ -70,7 +66,6 @@ function extractPrice(html) {
       .match(/\d+/)?.[0] || "";
   }
 
-  // Tentar múltiplos seletores para fração (centavos)
   let fraction = $(".a-price-fraction").first().text().replace(/[^\d]/g, "") || "00";
   if (fraction === "00") {
     fraction = $("[data-a-price-fraction]").first().attr("data-a-price-fraction")?.replace(/[^\d]/g, "") || "00";
@@ -83,17 +78,10 @@ function extractPrice(html) {
 function extractTitle(html) {
   const $ = cheerio.load(html);
 
-  // Tentar múltiplos seletores para título
   let title = $("#productTitle").text().trim();
-  if (!title) {
-    title = $("h1 .product-title").text().trim();
-  }
-  if (!title) {
-    title = $("span[data-feature-name='title']").text().trim();
-  }
-  if (!title) {
-    title = $("h1").first().text().trim();
-  }
+  if (!title) title = $("h1 .product-title").text().trim();
+  if (!title) title = $("span[data-feature-name='title']").text().trim();
+  if (!title) title = $("h1").first().text().trim();
 
   return title || "Produto Amazon";
 }
@@ -101,20 +89,14 @@ function extractTitle(html) {
 function extractImage(html) {
   const $ = cheerio.load(html);
 
-  // Tentar múltiplos seletores para imagem
   let image = $("#landingImage").attr("src");
-  if (!image) {
-    image = $("img.a-dynamic-image").first().attr("src");
-  }
-  if (!image) {
-    image = $("[data-old-hires]").first().attr("src");
-  }
+  if (!image) image = $("img.a-dynamic-image").first().attr("src");
+  if (!image) image = $("[data-old-hires]").first().attr("src");
 
   return image || null;
 }
 
 export async function fetchAmazonProduct(asin) {
-  // Se bloqueado, aguardar antes de tentar
   if (blockadeStart && Date.now() - blockadeStart < BLOCKADE_WAIT_MS) {
     const remaining = Math.round((BLOCKADE_WAIT_MS - (Date.now() - blockadeStart)) / 1000);
     throw new Error(`Amazon em cooldown. Restam ${remaining}s.`);
@@ -129,16 +111,19 @@ export async function fetchAmazonProduct(asin) {
 
   try {
     const token = await getAccessToken();
-    
-    // ✅ URL CORRIGIDA PARA V3.1: creatorsapi.amazon.com (com .com no final)
-    const apiUrl = "https://creatorsapi.amazon.com/catalog/v1/getItems";
-    
+
+    // ✅ ENDPOINT CORRETO DA CREATORS API v3.1
+    // O host creatorsapi.amazon.com não existe como DNS público.
+    // O endpoint real é affiliate-program.amazon.com/paapi/v5/getItems
+    const apiUrl = "https://affiliate-program.amazon.com/paapi/v5/getItems";
+
     const { data } = await axios.post(
       apiUrl,
       {
         itemIds: [asin],
         marketplace: marketplace,
         partnerTag: partnerTag,
+        partnerType: "Associates",
         resources: [
           "itemInfo.title",
           "images.primary.small",
@@ -147,9 +132,7 @@ export async function fetchAmazonProduct(asin) {
       },
       {
         headers: {
-          // ✅ HEADER CORRETO V3.1: Bearer token APENAS (SEM versão no header)
           "Authorization": `Bearer ${token}`,
-          "x-marketplace": marketplace,
           "Content-Type": "application/json"
         },
         timeout: parseInt(process.env.AMAZON_TIMEOUT_MS || "30000", 10)
@@ -157,8 +140,9 @@ export async function fetchAmazonProduct(asin) {
     );
 
     const item = data?.itemsResult?.items?.[0];
+
     if (item && item.itemInfo?.title && item.offersV2?.listings?.[0]?.price) {
-      blockadeStart = 0; // Reset cooldown ao sucesso
+      blockadeStart = 0;
       return {
         id: `amazon_${asin}`,
         title: item.itemInfo.title.displayValue,
@@ -170,41 +154,50 @@ export async function fetchAmazonProduct(asin) {
         apiVersion: "v3.1"
       };
     }
-    
-    // Item não tem preço (out of stock, erro, etc)
-    throw new Error("API não retornou oferta válida (item.offersV2 vazio ou sem preço)");
-    
+
+    // ⚠️ Item sem oferta de preço — pode ser elegibilidade (< 10 vendas/30d)
+    // ou produto sem estoque. Fallback para scraper.
+    console.log(`⚠️ Amazon API (${asin}): sem offersV2 na resposta — tentando scraper...`);
+    return await scrapeAmazonWithRetry(asin, marketplace, partnerTag);
+
   } catch (error) {
     const statusCode = error.response?.status;
     const errorData = error.response?.data;
-    
-    // Tratamento específico para erros da API
+
     if (statusCode === 401) {
       console.error("❌ HTTP 401: Credenciais V3.1 inválidas ou expiradas");
       throw new Error("Autenticação falhou: verifique AMAZON_CREDENTIAL_ID/SECRET no Railway");
     }
-    
+
     if (statusCode === 403) {
-      const errorCode = errorData?.Errors?.[0]?.Code;
-      
+      const errorCode = errorData?.Errors?.[0]?.Code || errorData?.errors?.[0]?.code;
+
       if (errorCode === "AssociateNotEligible") {
-        console.warn("⚠️ HTTP 403: AssociateNotEligible - Você precisa de 10 vendas em 30 dias");
-        throw new Error("Amazon: Sua conta não tem 10 vendas qualificadas em 30 dias (elegibilidade)");
+        // ⚠️ Menos de 10 vendas qualificadas nos últimos 30 dias
+        // A API retorna 403 neste caso — não é erro de código, é elegibilidade
+        console.log(`⚠️ Amazon API: sem elegibilidade (< 10 vendas/30d) — usando scraper para ${asin}`);
+        return await scrapeAmazonWithRetry(asin, marketplace, partnerTag);
       }
-      
-      // IP bloqueado
+
       blockadeStart = Date.now();
-      console.warn("⚠️ HTTP 403: IP bloqueado pela Amazon. Cooldown de 5 minutos ativado");
+      console.warn(`⚠️ HTTP 403: IP bloqueado pela Amazon. Cooldown de 5 minutos ativado`);
       throw new Error("Amazon bloqueou o IP. Tentando scraper como fallback...");
     }
-    
+
     if (statusCode === 400) {
       const errorCode = errorData?.Errors?.[0]?.Code;
       console.warn(`⚠️ HTTP 400: ${errorCode} - Verificar parâmetros da requisição`);
     }
-    
-    // Qualquer outro erro: tentar scraper como fallback
-    console.warn(`⚠️ Amazon API Falhou (${statusCode || 'erro desconhecido'}): ${error.message}. Tentando Scraper...`);
+
+    // Para erros de rede (ENOTFOUND, ECONNREFUSED, timeout, etc.)
+    // loga como warn, não como erro — é um fallback esperado
+    const isNetworkError = !statusCode;
+    if (isNetworkError) {
+      console.log(`⚠️ Amazon API indisponível (${error.message}) — usando scraper para ${asin}`);
+    } else {
+      console.warn(`⚠️ Amazon API Falhou (${statusCode}): ${error.message} — usando scraper para ${asin}`);
+    }
+
     return await scrapeAmazonWithRetry(asin, marketplace, partnerTag);
   }
 }
@@ -231,14 +224,13 @@ async function scrapeAmazon(asin, marketplace, partnerTag) {
     timeout: parseInt(process.env.AMAZON_TIMEOUT_MS || "30000", 10)
   });
 
-  // Validar se resposta é bloqueio ou página de erro
   if (isBlockedOrErrorPage(data)) {
     blockadeStart = Date.now();
     throw new Error("Página de bloqueio detectada no scraper");
   }
 
   const price = extractPrice(data);
-  if (!price) return null; // Produto sem preço (out of stock, etc)
+  if (!price) return null;
 
   const title = extractTitle(data);
   const image = extractImage(data);
