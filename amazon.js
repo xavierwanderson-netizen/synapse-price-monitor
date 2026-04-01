@@ -229,19 +229,39 @@ async function scrapeAmazonWithRetry(asin, marketplace, partnerTag) {
 async function scrapeAmazon(asin, marketplace, partnerTag) {
   const url = `https://${marketplace}/dp/${asin}?tag=${partnerTag}`;
 
+  // Add ±20% jitter to the base delay to prevent pattern detection
+  const baseDelay = parseInt(process.env.REQUEST_DELAY_MS || "8000", 10);
+  const jitter = baseDelay * 0.2;
+  const delay = baseDelay + Math.floor(Math.random() * jitter * 2) - jitter;
+  if (delay > 0) await new Promise(r => setTimeout(r, delay));
+
   const { data } = await axios.get(url, {
     headers: {
       "User-Agent": getRandomUserAgent(),
       "Accept-Language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7",
-      "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7"
+      "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+      "Referer": "https://www.amazon.com.br/",
+      "Accept-Encoding": "gzip, deflate, br",
+      "Cache-Control": "max-age=0",
+      "Pragma": "no-cache",
+      "Connection": "keep-alive",
+      "Upgrade-Insecure-Requests": "1",
+      "Sec-Fetch-Dest": "document",
+      "Sec-Fetch-Mode": "navigate",
+      "Sec-Fetch-Site": "none",
+      "Sec-Fetch-User": "?1",
+      "Sec-Ch-Ua": '"Not A(Brand";v="99", "Google Chrome";v="121"',
+      "Sec-Ch-Ua-Mobile": "?0",
+      "Sec-Ch-Ua-Platform": '"Windows"'
     },
     timeout: parseInt(process.env.AMAZON_TIMEOUT_MS || "30000", 10),
     ...getProxyAgents()
   });
 
-  if (isBlockedOrErrorPage(data)) {
+  const blockReason = isBlockedOrErrorPage(data);
+  if (blockReason) {
     blockadeStart = Date.now();
-    throw new Error("Página de bloqueio detectada no scraper");
+    throw new Error(`Página de bloqueio detectada no scraper [motivo: ${blockReason}]`);
   }
 
   const price = extractPrice(data);

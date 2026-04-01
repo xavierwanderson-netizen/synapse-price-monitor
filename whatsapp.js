@@ -114,6 +114,22 @@ export async function initWhatsApp() {
     console.log("⚠️ [WhatsApp] WA_GROUP_ID não definido. Notificações WhatsApp desativadas.");
     return;
   }
+
+  // RESET_WA=true → wipe saved session so a fresh QR scan is required
+  if (process.env.RESET_WA === "true") {
+    if (fs.existsSync(AUTH_DIR)) {
+      try {
+        fs.rmSync(AUTH_DIR, { recursive: true, force: true });
+        console.log("🗑️  [WhatsApp] Sessão anterior removida (RESET_WA=true).");
+        console.log("ℹ️  [WhatsApp] Um novo QR code será gerado. Após escanear, remova RESET_WA do Railway para não resetar a cada deploy.");
+      } catch (err) {
+        console.error("❌ [WhatsApp] Falha ao remover sessão:", err.message);
+      }
+    } else {
+      console.log("ℹ️  [WhatsApp] RESET_WA=true mas nenhuma sessão salva encontrada — prosseguindo normalmente.");
+    }
+  }
+
   await connectWhatsApp();
 }
 

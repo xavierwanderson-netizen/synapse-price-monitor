@@ -37,6 +37,8 @@ export function validateEnvironment() {
 
     // WhatsApp (opcional)
     WA_GROUP_ID: process.env.WA_GROUP_ID || null,
+    // Set RESET_WA=true in Railway to wipe the saved session and force a new QR scan
+    RESET_WA: process.env.RESET_WA || "false",
 
     // Proxy (opcional)
     PROXY_URL: process.env.PROXY_URL || null,
@@ -113,6 +115,8 @@ export function validateEnvironment() {
     whatsapp: {
       enabled: !!process.env.WA_GROUP_ID,
       groupId: process.env.WA_GROUP_ID,
+      // true when RESET_WA=true is set in Railway — clears saved session on startup
+      resetSession: process.env.RESET_WA === "true",
     },
     dataDir: process.env.RAILWAY_VOLUME_MOUNT_PATH || "/.data",
     proxyUrl: process.env.PROXY_URL || null,
