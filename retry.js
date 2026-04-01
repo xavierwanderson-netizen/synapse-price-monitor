@@ -2,7 +2,6 @@
  * retry.js - Utilidade de Retry com Backoff Exponencial
  * Reutilizável por todos os scrapers para tratamento consistente de falhas
  */
-
 export async function retryWithBackoff(
   fn,
   maxRetries = 3,
@@ -11,21 +10,18 @@ export async function retryWithBackoff(
   label = "Operation"
 ) {
   let lastError = null;
-
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
       return await fn();
     } catch (error) {
       lastError = error;
-
       if (attempt === maxRetries) {
+        // ✅ Falha permanente após esgotar tentativas: isso sim é erro real
         console.error(`❌ ${label}: Falha permanente após ${maxRetries} tentativas`);
         throw error;
       }
-
       // Calcular delay com backoff exponencial
       const delay = Math.min(baseDelay * Math.pow(2, attempt - 1), maxDelay);
-
       // Detectar se é erro temporário ou permanente
       const status = error.response?.status;
       const isTemporary =
@@ -34,21 +30,18 @@ export async function retryWithBackoff(
         status === 503 || // Service unavailable
         status === 504 || // Gateway timeout
         status === 408; // Request timeout
-
       if (!isTemporary && status !== 403) {
         // 403 pode ser IP bloqueado (temporário)
         console.error(`❌ ${label}: Erro permanente (${status}): ${error.message}`);
         throw error;
       }
-
-      console.warn(
+      // ✅ FIX: retry é comportamento esperado, não erro
+      console.log(
         `⚠️ ${label}: Tentativa ${attempt}/${maxRetries} falhou - Retry em ${delay}ms (${error.message})`
       );
-
       await new Promise((r) => setTimeout(r, delay));
     }
   }
-
   throw lastError;
 }
 
@@ -57,7 +50,6 @@ export async function retryWithBackoff(
  */
 export function isBlockedOrErrorPage(html) {
   if (!html || html.length < 100) return true;
-
   const indicators = [
     "robot check",
     "captcha",
@@ -69,7 +61,6 @@ export function isBlockedOrErrorPage(html) {
     '<title>Error</title>',
     "please try again later"
   ];
-
   return indicators.some((indicator) =>
     html.toLowerCase().includes(indicator)
   );
