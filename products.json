@@ -216,10 +216,6 @@
     "platform": "shopee"
   },
   {
-    "asin": "B0DT53T6FN",
-    "platform": "amazon"
-  },
-  {
     "itemId": 22097785703,
     "shopId": 1217782773,
     "platform": "shopee"
@@ -245,11 +241,6 @@
   {
     "asin": "B0DT5LHPMX",
     "platform": "amazon"
-  },
-  {
-    "itemId": 58201653185,
-    "shopId": 627750190,
-    "platform": "shopee"
   },
   {
     "asin": "B0DHWF5G76",
@@ -373,11 +364,6 @@
     "platform": "amazon"
   },
   {
-    "itemId": 20797995919,
-    "shopId": 391739739,
-    "platform": "shopee"
-  },
-  {
     "asin": "B07M6S9JBT",
     "platform": "amazon"
   },
@@ -394,10 +380,6 @@
     "itemId": 22397617913,
     "shopId": 1252070618,
     "platform": "shopee"
-  },
-  {
-    "asin": "B07VB9W1V7",
-    "platform": "amazon"
   },
   {
     "itemId": 21999258440,
@@ -508,11 +490,6 @@
     "platform": "amazon"
   },
   {
-    "itemId": 58201653185,
-    "shopId": 627750190,
-    "platform": "shopee"
-  },
-  {
     "asin": "B094YR4SLJ",
     "platform": "amazon"
   },
@@ -553,11 +530,6 @@
     "platform": "amazon"
   },
   {
-    "itemId": 58204465638,
-    "shopId": 1033215079,
-    "platform": "shopee"
-  },
-  {
     "asin": "B09B8QFYZ2",
     "platform": "amazon"
   },
@@ -565,10 +537,6 @@
     "itemId": 58202180351,
     "shopId": 1398532513,
     "platform": "shopee"
-  },
-  {
-    "asin": "B0CVCLGV1W",
-    "platform": "amazon"
   },
   {
     "itemId": 58252222655,
@@ -725,10 +693,6 @@
     "platform": "amazon"
   },
   {
-    "asin": "B0C7W863T2",
-    "platform": "amazon"
-  },
-  {
     "asin": "B09PNQZ8VH",
     "platform": "amazon"
   },
@@ -750,14 +714,6 @@
   },
   {
     "asin": "B0BQJNGHHC",
-    "platform": "amazon"
-  },
-  {
-    "asin": "B0BQJNGHHC",
-    "platform": "amazon"
-  },
-  {
-    "asin": "B002BSJLE0",
     "platform": "amazon"
   },
   {
@@ -853,23 +809,11 @@
     "platform": "amazon"
   },
   {
-    "asin": "B01IT28KG6",
-    "platform": "amazon"
-  },
-  {
     "asin": "B0CYW2N6TX",
     "platform": "amazon"
   },
   {
     "asin": "B0FR5GGGWD",
-    "platform": "amazon"
-  },
-  {
-    "asin": "B0DHWCHN2Z",
-    "platform": "amazon"
-  },
-  {
-    "asin": "B0F3LTWYS5",
     "platform": "amazon"
   },
   {
@@ -937,15 +881,7 @@
     "platform": "amazon"
   },
   {
-    "asin": "B0FDW1LPX8",
-    "platform": "amazon"
-  },
-  {
     "asin": "B0BTYCRJSS",
-    "platform": "amazon"
-  },
-  {
-    "asin": "B076HYZQMW",
     "platform": "amazon"
   },
   {
@@ -957,15 +893,7 @@
     "platform": "amazon"
   },
   {
-    "asin": "B0FW4J5SCN",
-    "platform": "amazon"
-  },
-  {
     "asin": "B0B8SNVK5K",
-    "platform": "amazon"
-  },
-  {
-    "asin": "B0FBCT4217",
     "platform": "amazon"
   }
 ]
