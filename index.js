@@ -16,6 +16,7 @@ const PRODUCTS_FILE = path.join(__dirname, "products.json");
 const config = validateEnvironment();
 
 // ✅ VARIÁVEIS DO RAILWAY
+const DATA_DIR = config.dataDir;
 const CHECK_INTERVAL_MINUTES = config.timing.checkIntervalMinutes;
 const MONITOR_INTERVAL = CHECK_INTERVAL_MINUTES * 60 * 1000;
 const REQUEST_DELAY_MS = config.timing.requestDelayMs;
@@ -67,10 +68,9 @@ process.on("uncaughtException", (error) => {
   isRunning = false;
 });
 
-n// ✅ Cleanup ao receber SIGTERM (deploy graceful)
+// ✅ Cleanup ao receber SIGTERM (deploy graceful)
 process.on("SIGTERM", () => {
-  console.log("
-⏹️  Recebido SIGTERM, finalizando gracefully...");
+  console.log("\n⏹️  Recebido SIGTERM, finalizando gracefully...");
   if (monitorIntervalId) clearInterval(monitorIntervalId);
   process.exit(0);
 });
