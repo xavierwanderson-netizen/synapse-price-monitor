@@ -17,6 +17,7 @@ async function generateShopeeShortLink(originUrl) {
     // Mutation conforme documentação oficial
     const query = `mutation{generateShortLink(input:{originUrl:"${originUrl}",subIds:["telegram","monitor_precos"]}){shortLink}}`;
     const payload = JSON.stringify({ query });
+// ⚠️ SEGURANÇA: Credenciais usadas em assinatura SHA256 - não logar payload completo
 
     // Assinatura oficial: AppId + Timestamp + Payload + Secret
     const baseStr = appId + timestamp + payload + appKey;

@@ -16,7 +16,6 @@ const PRODUCTS_FILE = path.join(__dirname, "products.json");
 const config = validateEnvironment();
 
 // ✅ VARIÁVEIS DO RAILWAY
-const DATA_DIR = config.dataDir;
 const CHECK_INTERVAL_MINUTES = config.timing.checkIntervalMinutes;
 const MONITOR_INTERVAL = CHECK_INTERVAL_MINUTES * 60 * 1000;
 const REQUEST_DELAY_MS = config.timing.requestDelayMs;
@@ -24,6 +23,7 @@ const REQUEST_DELAY_MS = config.timing.requestDelayMs;
 // ✅ Controle de concorrência e cooldown de rate limit
 let isRunning = false;
 const amazonCooldownTracker = {};
+let monitorIntervalId = null;
 
 // ✅ Circuit breaker — suspende ASINs com falhas consecutivas no scraper
 // Evita gastar 3 tentativas por ciclo em produtos permanentemente bloqueados
@@ -67,6 +67,13 @@ process.on("uncaughtException", (error) => {
   isRunning = false;
 });
 
+n// ✅ Cleanup ao receber SIGTERM (deploy graceful)
+process.on("SIGTERM", () => {
+  console.log("
+⏹️  Recebido SIGTERM, finalizando gracefully...");
+  if (monitorIntervalId) clearInterval(monitorIntervalId);
+  process.exit(0);
+});
 async function loadProducts() {
   try {
     const data = await fs.readFile(PRODUCTS_FILE, "utf-8");
@@ -286,7 +293,7 @@ async function startMonitor() {
   await monitorCycle();
 
   console.log(`\n⏲️  Aguardando ${CHECK_INTERVAL_MINUTES} minutos até próximo ciclo...`);
-  setInterval(() => {
+  monitorIntervalId = setInterval(() => {
     monitorCycle().catch(err => {
       console.error("❌ Erro não capturado em monitorCycle:", err);
       isRunning = false;
